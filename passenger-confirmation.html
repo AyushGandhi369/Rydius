@@ -1,0 +1,2116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="Find your ride - RideMate">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <title>Find Your Ride - RideMate</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="/icons/icon-72x72.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <link rel="stylesheet" href="style.css">
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Passenger Confirmation Full-Width Layout */
+        .passenger-confirmation-main {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+        }
+
+        .confirmation-content {
+            flex: 1;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            overflow-y: auto;
+            background: #000000;
+            color: #ffffff;
+            position: relative;
+            border-right: 1px solid #e5e7eb;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+
+        .content-header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
+            padding: 20px 50px;
+            border-bottom: 1px solid #333;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .content-body {
+            flex: 1;
+            padding: 40px 30px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .map-section {
+            flex: 1;
+            height: 100vh;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .map-overlay {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            right: 24px;
+            background: rgba(0, 0, 0, 0.95);
+            border-radius: 12px;
+            padding: 18px 24px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .route-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 15px;
+            color: #ffffff;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+        }
+
+
+        .confirmation-title {
+            font-size: 48px;
+            font-weight: 900;
+            color: #ffffff;
+            text-align: left;
+            margin-bottom: 16px;
+            line-height: 1.1;
+            letter-spacing: -1px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .confirmation-subtitle {
+            font-size: 20px;
+            color: #a0a0a0;
+            text-align: left;
+            margin-bottom: 40px;
+            line-height: 1.4;
+            font-weight: 400;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .route-summary {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 32px 24px 24px 24px;
+            margin-bottom: 32px;
+            border: 1px solid #333;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .route-summary h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .route-details {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .route-point {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 2px 0;
+        }
+
+        .route-icon {
+            font-size: 16px;
+            width: 24px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .route-start {
+            color: #4CAF50;
+        }
+
+        .route-end {
+            color: #f44336;
+        }
+
+        .route-text {
+            font-size: 16px;
+            color: #ffffff;
+            font-weight: 400;
+        }
+
+        .route-line {
+            height: 12px;
+            width: 2px;
+            background: #555;
+            margin-left: 11px;
+            border-radius: 1px;
+        }
+
+        /* Driver List Styles */
+        .drivers-section {
+            margin-top: 32px;
+        }
+
+        .drivers-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .drivers-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }
+
+        .filter-btn {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.1));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-btn:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.15));
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .drivers-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 75vh;
+            overflow-y: auto;
+            padding-right: 12px;
+            scroll-behavior: smooth;
+        }
+
+        .drivers-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .drivers-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .drivers-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .drivers-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .driver-card {
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(31, 31, 31, 0.9) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            min-height: auto;
+            display: flex;
+            flex-direction: column;
+            max-height: none;
+        }
+
+        .driver-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, transparent, rgba(33, 150, 243, 0.1));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .driver-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(33, 150, 243, 0.5);
+            box-shadow: 0 16px 48px rgba(33, 150, 243, 0.3);
+        }
+
+        .driver-card:hover::before {
+            opacity: 1;
+        }
+
+        .driver-card.selected {
+            border-color: #2196f3;
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.95), rgba(30, 42, 58, 0.95));
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3), 0 16px 48px rgba(33, 150, 243, 0.4);
+        }
+
+        .driver-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .driver-info {
+            flex: 1;
+        }
+
+        .driver-name {
+            font-size: 22px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+            text-align: left;
+        }
+
+        .driver-rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rating-stars {
+            display: flex;
+            gap: 2px;
+        }
+
+        .star {
+            color: #ffc107;
+            font-size: 16px;
+            text-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+        }
+
+        .star.empty {
+            color: rgba(255, 255, 255, 0.2);
+            text-shadow: none;
+        }
+
+        .rating-value {
+            font-size: 15px;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .driver-eta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(33, 150, 243, 0.1);
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(33, 150, 243, 0.2);
+        }
+
+        .eta-time {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2196f3;
+            line-height: 1;
+        }
+
+        .eta-label {
+            font-size: 12px;
+            color: rgba(33, 150, 243, 0.8);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .vehicle-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding: 16px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.05));
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+        }
+
+        .vehicle-icon {
+            font-size: 36px;
+            background: linear-gradient(135deg, rgba(33, 150, 243, 0.2), rgba(33, 150, 243, 0.1));
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.2);
+        }
+
+        .vehicle-details {
+            flex: 1;
+        }
+
+        .vehicle-model {
+            font-size: 18px;
+            color: #ffffff;
+            font-weight: 700;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .vehicle-number {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 600;
+            letter-spacing: 1px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .vehicle-type {
+            display: inline-block;
+            font-size: 12px;
+            color: #2196f3;
+            background: rgba(33, 150, 243, 0.15);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid rgba(33, 150, 243, 0.3);
+        }
+
+        .driver-route-section {
+            margin-bottom: 12px;
+            flex: 1;
+        }
+
+        .route-section-title {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .route-section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .route-info-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.05));
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .route-locations {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .location-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .location-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .location-icon.pickup {
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(76, 175, 80, 0.1));
+            border: 1px solid rgba(76, 175, 80, 0.3);
+            color: #4CAF50;
+        }
+
+        .location-icon.dropoff {
+            background: linear-gradient(135deg, rgba(244, 67, 54, 0.2), rgba(244, 67, 54, 0.1));
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            color: #f44336;
+        }
+
+        .location-details {
+            flex: 1;
+        }
+
+        .location-label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .location-address {
+            font-size: 15px;
+            color: #ffffff;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        .route-line-vertical {
+            width: 36px;
+            height: 20px;
+            display: flex;
+            justify-content: center;
+            margin-left: 0;
+        }
+
+        .route-line-vertical::before {
+            content: '';
+            width: 2px;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(76, 175, 80, 0.3), rgba(244, 67, 54, 0.3));
+            border-radius: 1px;
+        }
+
+        .price-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 20px;
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.15), rgba(76, 175, 80, 0.08));
+            border-radius: 16px;
+            margin: 12px 0 16px 0;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+            position: relative;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+        }
+
+        .price-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .price-value {
+            font-size: 36px;
+            font-weight: 900;
+            color: #4CAF50;
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            text-shadow: 0 2px 6px rgba(76, 175, 80, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .price-currency {
+            font-size: 24px;
+            font-weight: 800;
+        }
+
+        .price-estimate {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 500;
+        }
+
+        .select-driver-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #2196f3, #1976d2);
+            color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 8px 24px rgba(33, 150, 243, 0.4);
+            position: relative;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .select-driver-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .select-driver-btn:hover {
+            background: linear-gradient(135deg, #1976d2, #1565c0);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(33, 150, 243, 0.5);
+        }
+
+        .select-driver-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .select-driver-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 16px rgba(33, 150, 243, 0.4);
+        }
+
+        .status-indicator {
+            position: fixed;
+            bottom: 32px;
+            right: 32px;
+            background: #000000;
+            color: #ffffff;
+            padding: 18px 28px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+            z-index: 1001;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background-color: #2196f3;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.5);
+                opacity: 0.7;
+            }
+        }
+
+        /* Loading skeleton */
+        .driver-card-skeleton {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+            animation: skeleton-loading 1.5s infinite;
+        }
+
+        @keyframes skeleton-loading {
+            0% {
+                opacity: 0.7;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.7;
+            }
+        }
+
+        .skeleton-line {
+            height: 16px;
+            background: #333;
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+
+        .skeleton-line.short {
+            width: 60%;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .confirmation-title {
+                font-size: 36px;
+            }
+
+            .confirmation-subtitle {
+                font-size: 18px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .passenger-confirmation-main {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .confirmation-content {
+                flex: none;
+                height: auto;
+                border-right: none;
+            }
+
+            .content-header {
+                padding: 15px 30px;
+            }
+
+            .content-body {
+                padding: 30px;
+            }
+
+            .map-section {
+                flex: none;
+                height: 60vh;
+            }
+
+            .drivers-list {
+                max-height: 300px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .content-header {
+                padding: 15px 20px;
+            }
+
+            .content-body {
+                padding: 20px;
+            }
+
+            .confirmation-title {
+                font-size: 30px;
+            }
+
+            .confirmation-subtitle {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="passenger-confirmation-main">
+        <div class="confirmation-content">
+            <div class="content-header">
+                <nav class="navbar"
+                    style="padding: 0; max-width: none; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="nav-brand">
+                        <h2 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">RideMate</h2>
+                    </div>
+                    <div class="nav-right">
+                        <a href="index.html" class="back-btn"
+                            style="color: #ffffff; font-weight: 600; text-decoration: none; padding: 10px 20px; border-radius: 8px; border: 1px solid #444; transition: all 0.2s ease; display: flex; align-items: center; gap: 8px;">←
+                            Back to Home</a>
+                    </div>
+                </nav>
+            </div>
+
+            <div class="content-body">
+                <h1 class="confirmation-title">Finding your perfect ride</h1>
+                <p class="confirmation-subtitle">We're matching you with drivers heading your way. Sit back and relax!
+                </p>
+
+                <div class="route-summary">
+                    <h3 style="margin-bottom: 40px;">Your Journey</h3>
+                    <div class="route-details">
+                        <div class="route-point">
+                            <span class="route-icon route-start" style="color: #4CAF50;">●</span>
+                            <span class="route-text" id="start-location">Loading...</span>
+                        </div>
+                        <div class="route-line"
+                            style="height: 40px; width: 2px; background: linear-gradient(to bottom, #4CAF50 0%, #555 30%, #555 100%); margin-left: 11px; margin-top: -10px; margin-bottom: -10px;">
+                        </div>
+                        <div class="route-point">
+                            <span class="route-icon route-end" style="color: #f44336;">📍</span>
+                            <span class="route-text" id="end-location">Loading...</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #333;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 14px; color: rgba(255, 255, 255, 0.6); margin-bottom: 4px;">
+                                    Estimated Fare</div>
+                                <div style="font-size: 12px; color: rgba(255, 255, 255, 0.4);">₹30 per 10km</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div id="journey-price" style="font-size: 32px; font-weight: 800; color: #4CAF50;">
+                                    <span style="font-size: 20px;">₹</span><span id="price-amount">--</span>
+                                </div>
+                                <div id="journey-distance"
+                                    style="font-size: 12px; color: rgba(255, 255, 255, 0.5); margin-top: 4px;">-- km
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="drivers-section">
+                    <div class="drivers-header">
+                        <h3 class="drivers-title">Available Drivers</h3>
+                        <button class="filter-btn">
+                            <span>🎯</span> Filters
+                        </button>
+                    </div>
+
+                    <div class="drivers-list" id="drivers-list">
+                        <!-- Loading skeletons -->
+                        <div class="driver-card-skeleton">
+                            <div class="skeleton-line short"></div>
+                            <div class="skeleton-line"></div>
+                            <div class="skeleton-line short"></div>
+                        </div>
+                        <div class="driver-card-skeleton">
+                            <div class="skeleton-line short"></div>
+                            <div class="skeleton-line"></div>
+                            <div class="skeleton-line short"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-section">
+            <div id="map"></div>
+            <div class="map-overlay">
+                <div class="route-info">
+                    <span id="route-distance">Calculating route...</span>
+                    <span>•</span>
+                    <span id="route-duration">Estimating time...</span>
+                    <span>•</span>
+                    <span id="drivers-count">Searching for drivers</span>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <div class="pulse"></div>
+                <span id="status-text">Searching for drivers nearby</span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Global variables for map and route
+        let map;
+        let directionsService;
+        let directionsRenderer;
+        let startLocation;
+        let endLocation;
+        let driverMarkers = [];
+        let selectedDriverId = null;
+        let passengerRoute = null;
+        let currentRequestId = null;
+        let routeDistance = null;
+        let routeDuration = null;
+        let pickupCoords = null;
+        let dropoffCoords = null;
+        let actualDropoffMarker = null;
+        let dropoffPathLine = null;
+        let hoveredDriverId = null;
+        let driversData = []; // Store driver data for hover functionality
+        let driverRouteLine = null; // Store the driver's route polyline
+        let routeInfoWindow = null; // Store route info window
+        let selectedDriverData = null; // Store selected driver data
+        let driverRouteMarkers = []; // Store markers for driver route
+        let googleMapsAvailable = false; // Track if Google Maps is working
+
+        // Handle Google Maps API authentication failures
+        window.gm_authFailure = function () {
+            console.error('Google Maps API authentication failed - billing may not be enabled');
+            showMapFallback('Google Maps API key issue. Please enable billing in Google Cloud Console.');
+        };
+
+        // Handle Google Maps loading errors
+        window.addEventListener('error', function (e) {
+            if (e.message && (e.message.includes('Google') || e.target && e.target.src && e.target.src.includes('maps.googleapis.com'))) {
+                showMapFallback('Unable to load Google Maps. The app will continue with limited functionality.');
+            }
+        }, true);
+
+        // Show fallback UI when map can't load
+        function showMapFallback(message) {
+            const mapElement = document.getElementById('map');
+            if (mapElement) {
+                mapElement.innerHTML = `
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); color: white; padding: 40px; text-align: center;">
+                        <div style="font-size: 64px; margin-bottom: 20px;">🗺️</div>
+                        <h3 style="font-size: 24px; margin-bottom: 16px; color: #fff;">Map Unavailable</h3>
+                        <p style="font-size: 14px; color: rgba(255,255,255,0.7); max-width: 300px; line-height: 1.5; margin-bottom: 24px;">${message}</p>
+                        <div style="background: rgba(33, 150, 243, 0.1); border: 1px solid rgba(33, 150, 243, 0.3); border-radius: 12px; padding: 16px 24px;">
+                            <p style="font-size: 12px; color: #2196f3; margin: 0;">Your ride request is still active. Drivers will be notified.</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Update route info overlay
+            const routeDistance = document.getElementById('route-distance');
+            const routeDuration = document.getElementById('route-duration');
+            if (routeDistance) routeDistance.textContent = 'Route info unavailable';
+            if (routeDuration) routeDuration.textContent = 'Using local estimates';
+
+            // Continue with app without map
+            initializeAppWithoutMap();
+        }
+
+        // Initialize app when Google Maps isn't available
+        function initializeAppWithoutMap() {
+            const urlParams = new URLSearchParams(window.location.search);
+            startLocation = urlParams.get('start') || localStorage.getItem('startLocation') || 'Ahmedabad';
+            endLocation = urlParams.get('end') || localStorage.getItem('endLocation') || 'Gandhinagar';
+
+            document.getElementById('start-location').textContent = startLocation;
+            document.getElementById('end-location').textContent = endLocation;
+
+            // Estimate price based on average (30km = ~₹90)
+            document.getElementById('price-amount').textContent = '--';
+            document.getElementById('journey-distance').textContent = 'Calculating...';
+
+            setupEventHandlers();
+            checkAuthAndCreateRequest();
+        }
+
+        // This function will be called by Google Maps API when it loads
+        function initializeApp() {
+            googleMapsAvailable = true;
+            console.log('Initializing RideMate Passenger app...');
+
+            const urlParams = new URLSearchParams(window.location.search);
+            startLocation = urlParams.get('start') || localStorage.getItem('startLocation') || 'Ahmedabad';
+            endLocation = urlParams.get('end') || localStorage.getItem('endLocation') || 'Gandhinagar';
+
+            // Update UI with locations
+            document.getElementById('start-location').textContent = startLocation;
+            document.getElementById('end-location').textContent = endLocation;
+
+            // Initialize Google Maps
+            initMap();
+
+            // Setup event handlers
+            setupEventHandlers();
+
+            // Check authentication
+            checkAuthAndCreateRequest();
+        }
+
+        async function checkAuthAndCreateRequest() {
+            try {
+                const response = await fetch('/api/auth/status', {
+                    credentials: 'include' // Include cookies for authentication
+                });
+                const data = await response.json();
+
+                if (!data.isAuthenticated) {
+                    showNotification('Please log in to request a ride', 'error');
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 2000);
+                    return;
+                }
+            } catch (error) {
+                console.error('Error checking auth:', error);
+            }
+        }
+
+        // Simple DOM ready check
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('DOM ready, waiting for Google Maps...');
+        });
+
+        function initMap() {
+            console.log('Initializing Google Maps...');
+
+            const mapElement = document.getElementById('map');
+            if (!mapElement) {
+                console.error('Map element not found!');
+                return;
+            }
+
+            try {
+                map = new google.maps.Map(mapElement, {
+                    zoom: 13,
+                    center: { lat: 23.0225, lng: 72.5714 }, // Default center
+                    styles: [
+                        // Modern map styling
+                        { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
+                        { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+                        { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
+
+                        // Roads styling
+                        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+                        { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
+                        { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+                        { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+
+                        // Points of interest
+                        { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
+                        { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+
+                        // Water and administrative
+                        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
+                        { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
+                    ],
+                    mapTypeControl: true,
+                    streetViewControl: true,
+                    fullscreenControl: true,
+                    zoomControl: true
+                });
+
+                // Initialize directions service and renderer
+                directionsService = new google.maps.DirectionsService();
+                directionsRenderer = new google.maps.DirectionsRenderer({
+                    map: map,
+                    suppressMarkers: true,
+                    polylineOptions: {
+                        strokeColor: '#2196f3',
+                        strokeWeight: 5,
+                        strokeOpacity: 1.0
+                    }
+                });
+
+                console.log('Map initialized successfully');
+
+                // Calculate and display route
+                calculateRoute();
+
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                updateStatusIndicator('Error loading map', 'error');
+            }
+        }
+
+        function calculateRoute() {
+            if (!startLocation || !endLocation) {
+                console.error('Start or end location is missing.');
+                updateStatusIndicator('Could not calculate route. Please try again.', 'error');
+                return;
+            }
+
+            console.log('Calculating route from', startLocation, 'to', endLocation);
+
+            const request = {
+                origin: startLocation,
+                destination: endLocation,
+                travelMode: google.maps.TravelMode.DRIVING,
+                avoidTolls: false,
+                avoidHighways: false,
+                region: 'IN' // India
+            };
+
+            directionsService.route(request, async (result, status) => {
+                if (status === 'OK') {
+                    console.log('Route calculated successfully:', result);
+                    directionsRenderer.setDirections(result);
+
+                    // Store the route for matching calculations
+                    passengerRoute = result.routes[0];
+
+                    // Extract route information
+                    const route = result.routes[0];
+                    if (!route || !route.legs || route.legs.length === 0) {
+                        console.error('No legs found in route result.');
+                        return;
+                    }
+                    const leg = route.legs[0];
+
+                    // Store coordinates and distance
+                    pickupCoords = {
+                        lat: leg.start_location.lat(),
+                        lng: leg.start_location.lng()
+                    };
+                    dropoffCoords = {
+                        lat: leg.end_location.lat(),
+                        lng: leg.end_location.lng()
+                    };
+                    routeDistance = leg.distance.value / 1000; // Convert to km
+                    routeDuration = Math.round(leg.duration.value / 60); // Convert to minutes
+
+                    // Update route info overlay
+                    document.getElementById('route-distance').textContent = leg.distance.text;
+                    document.getElementById('route-duration').textContent = leg.duration.text;
+
+                    // Calculate and display journey price
+                    const journeyPrice = calculatePrice(routeDistance);
+                    document.getElementById('price-amount').textContent = journeyPrice;
+                    document.getElementById('journey-distance').textContent = routeDistance.toFixed(1) + ' km';
+
+                    // Add custom markers for start and end points
+                    createMarker(leg.start_location, 'Your Location', 'passenger-start');
+                    createMarker(leg.end_location, 'Destination', 'passenger-end');
+
+                    // Create ride request in database
+                    await createRideRequest();
+
+                    // Find real drivers
+                    if (currentRequestId) {
+                        findAvailableDrivers();
+                    }
+
+                } else {
+                    console.error('Directions request failed due to ' + status);
+                    updateStatusIndicator(`Error: ${status}. Please check locations.`, 'error');
+                }
+            });
+        }
+
+        function calculateDynamicThreshold(distanceInMeters) {
+            // Dynamic threshold calculation
+            // Base: 200m for trips under 5km
+            // Scales up to 2km for trips over 100km
+            const distanceInKm = distanceInMeters / 1000;
+
+            if (distanceInKm <= 5) {
+                return 200; // 200 meters
+            } else if (distanceInKm <= 20) {
+                return 200 + (distanceInKm - 5) * 40; // Gradual increase
+            } else if (distanceInKm <= 50) {
+                return 800 + (distanceInKm - 20) * 20; // Slower increase
+            } else if (distanceInKm <= 100) {
+                return 1400 + (distanceInKm - 50) * 12; // Even slower
+            } else {
+                return 2000; // Max 2km threshold
+            }
+        }
+
+        function createMarker(position, title, type) {
+            let iconUrl;
+            if (type === 'passenger-start') {
+                iconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="20" cy="20" r="18" fill="#4CAF50" stroke="white" stroke-width="4"/>
+                        <circle cx="20" cy="20" r="8" fill="white"/>
+                    </svg>
+                `);
+            } else if (type === 'passenger-end') {
+                iconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M20 0C12 0 5 7 5 15C5 25 20 40 20 40S35 25 35 15C35 7 28 0 20 0Z" fill="#f44336" stroke="white" stroke-width="2"/>
+                        <circle cx="20" cy="15" r="6" fill="white"/>
+                    </svg>
+                `);
+            }
+
+            const marker = new google.maps.Marker({
+                position: position,
+                map: map,
+                title: title,
+                icon: {
+                    url: iconUrl,
+                    scaledSize: new google.maps.Size(40, 40),
+                    anchor: new google.maps.Point(20, 40)
+                },
+                animation: google.maps.Animation.DROP
+            });
+            return marker;
+        }
+
+        async function createRideRequest() {
+            try {
+                // Check if coordinates are available
+                if (!pickupCoords || !dropoffCoords) {
+                    console.error('Coordinates not available yet');
+                    showNotification('Please wait for route calculation to complete', 'error');
+                    return;
+                }
+
+                console.log('Creating ride request with:', {
+                    pickup: pickupCoords,
+                    dropoff: dropoffCoords,
+                    startLocation,
+                    endLocation
+                });
+
+                const requestData = {
+                    pickup_location: startLocation,
+                    dropoff_location: endLocation,
+                    pickup_lat: pickupCoords.lat,
+                    pickup_lng: pickupCoords.lng,
+                    dropoff_lat: dropoffCoords.lat,
+                    dropoff_lng: dropoffCoords.lng,
+                    requested_time: new Date().toISOString()
+                };
+
+                console.log('Request data:', requestData);
+
+                const response = await fetch('/api/ride-requests', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', // Include cookies for authentication
+                    body: JSON.stringify(requestData)
+                });
+
+                console.log('Response status:', response.status);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentRequestId = data.requestId;
+                    console.log('Ride request created with ID:', currentRequestId);
+                    showNotification('Your ride request has been created!', 'success');
+                } else {
+                    const error = await response.json();
+                    console.error('Server error:', error);
+                    throw new Error(error.message || 'Failed to create ride request');
+                }
+            } catch (error) {
+                console.error('Error creating ride request:', error);
+                showNotification(error.message || 'Error creating ride request. Please try again.', 'error');
+            }
+        }
+
+        async function findAvailableDrivers() {
+            try {
+                const params = new URLSearchParams({
+                    pickup_lat: pickupCoords.lat,
+                    pickup_lng: pickupCoords.lng,
+                    dropoff_lat: dropoffCoords.lat,
+                    dropoff_lng: dropoffCoords.lng,
+                    distance_km: routeDistance
+                });
+
+                console.log('Fetching available drivers with params:', params.toString());
+
+                const response = await fetch(`/api/available-drivers?${params}`, {
+                    credentials: 'include' // Include cookies for authentication
+                });
+
+                console.log('Available drivers response status:', response.status);
+
+                if (response.ok) {
+                    const drivers = await response.json();
+                    console.log('Found drivers:', drivers);
+                    displayRealDrivers(drivers);
+                } else {
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    throw new Error(`Failed to fetch drivers: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Error finding drivers:', error);
+                updateStatusIndicator('Error finding drivers. Please try again.', 'error');
+            }
+        }
+
+        function displayRealDrivers(drivers) {
+            // Clear existing driver markers
+            driverMarkers.forEach(marker => marker.setMap(null));
+            driverMarkers = [];
+
+            // Store driver data globally for hover functionality
+            driversData = drivers;
+
+            if (drivers.length === 0) {
+                updateStatusIndicator('No drivers available at the moment');
+                document.getElementById('drivers-count').textContent = 'No drivers available';
+                updateDriversList([]);
+                return;
+            }
+
+            updateStatusIndicator(`Found ${drivers.length} drivers nearby`);
+            document.getElementById('drivers-count').textContent = `${drivers.length} drivers available`;
+
+            // Add markers for each driver
+            drivers.forEach(driver => {
+                const driverMarker = createDriverMarker({
+                    id: driver.id,
+                    name: driver.driver_name,
+                    position: { lat: driver.start_lat, lng: driver.start_lng },
+                    eta: driver.eta,
+                    vehicle: {
+                        model: 'Vehicle', // You can enhance this with real vehicle data
+                        type: 'Sedan'
+                    }
+                });
+                driverMarkers.push(driverMarker);
+            });
+
+            // Update the drivers list UI
+            updateDriversList(drivers);
+        }
+
+        function calculatePrice(distanceInKm) {
+            // Simple pricing: ₹30 per 10km (₹3 per km)
+            const pricePerKm = 3;
+            const price = distanceInKm * pricePerKm;
+
+            return Math.round(price);
+        }
+
+        function getLocationName(fullLocation) {
+            // Extract a shorter, more readable location name
+            const parts = fullLocation.split(',');
+            if (parts.length > 2) {
+                return parts.slice(0, 2).join(', ').trim();
+            }
+            return fullLocation;
+        }
+
+        function getRandomDriverName() {
+            const names = [
+                'Rajesh Kumar', 'Amit Patel', 'Suresh Sharma', 'Vikram Singh',
+                'Arjun Reddy', 'Pradeep Verma', 'Karthik Nair', 'Ravi Gupta',
+                'Anil Mehta', 'Deepak Joshi'
+            ];
+            return names[Math.floor(Math.random() * names.length)];
+        }
+
+        function getRandomVehicle() {
+            const vehicles = [
+                { model: 'Swift Dzire', number: 'GJ 01 AB 1234', type: 'Sedan' },
+                { model: 'Honda City', number: 'GJ 05 CD 5678', type: 'Sedan' },
+                { model: 'Hyundai i20', number: 'GJ 06 EF 9012', type: 'Hatchback' },
+                { model: 'Maruti Baleno', number: 'GJ 01 GH 3456', type: 'Hatchback' },
+                { model: 'Toyota Innova', number: 'GJ 18 IJ 7890', type: 'SUV' },
+                { model: 'Tata Nexon', number: 'GJ 27 KL 2345', type: 'SUV' }
+            ];
+            return vehicles[Math.floor(Math.random() * vehicles.length)];
+        }
+
+        function generateDriverDestination(driverPos, passengerDest) {
+            // Generate a destination that's in the general direction but not exact
+            const latDiff = passengerDest.lat() - driverPos.lat();
+            const lngDiff = passengerDest.lng() - driverPos.lng();
+
+            // Add random variation (20-40% different from passenger destination)
+            const variation = 0.2 + Math.random() * 0.2;
+            const angle = Math.random() * Math.PI / 3 - Math.PI / 6; // ±30 degrees
+
+            const newLatDiff = latDiff * (1 + variation) * Math.cos(angle);
+            const newLngDiff = lngDiff * (1 + variation) * Math.sin(angle);
+
+            return {
+                lat: driverPos.lat() + newLatDiff,
+                lng: driverPos.lng() + newLngDiff
+            };
+        }
+
+        function createDriverMarker(driver) {
+            const marker = new google.maps.Marker({
+                position: driver.position,
+                map: map,
+                title: driver.name,
+                icon: {
+                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <g filter="url(#shadow)">
+                                <rect x="8" y="16" width="32" height="20" rx="4" fill="#1976d2"/>
+                                <rect x="12" y="12" width="24" height="16" rx="2" fill="#2196f3"/>
+                                <rect x="16" y="20" width="4" height="4" fill="white"/>
+                                <rect x="28" y="20" width="4" height="4" fill="white"/>
+                                <rect x="10" y="32" width="6" height="4" rx="2" fill="#333"/>
+                                <rect x="32" y="32" width="6" height="4" rx="2" fill="#333"/>
+                            </g>
+                            <defs>
+                                <filter id="shadow">
+                                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+                                </filter>
+                            </defs>
+                        </svg>
+                    `),
+                    scaledSize: new google.maps.Size(48, 48),
+                    anchor: new google.maps.Point(24, 24)
+                },
+                animation: google.maps.Animation.DROP
+            });
+
+            marker.driverId = driver.id;
+            driverMarkers.push(marker);
+
+            // Add click listener
+            marker.addListener('click', () => {
+                selectDriver(driver.id);
+            });
+
+            // Add hover effect
+            marker.addListener('mouseover', () => {
+                marker.setAnimation(google.maps.Animation.BOUNCE);
+            });
+
+            marker.addListener('mouseout', () => {
+                marker.setAnimation(null);
+            });
+
+            return marker;
+        }
+
+        function updateDriversList(drivers) {
+            const driversList = document.getElementById('drivers-list');
+            driversList.innerHTML = '';
+
+            if (drivers.length === 0) {
+                driversList.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <p style="font-size: 18px; margin-bottom: 10px;">No drivers available</p>
+                        <p style="font-size: 14px;">Please try again in a few moments</p>
+                    </div>
+                `;
+                return;
+            }
+
+            drivers.forEach(driver => {
+                const driverCard = createDriverCard(driver);
+                driversList.appendChild(driverCard);
+            });
+        }
+
+        function createDriverCard(driver) {
+            const card = document.createElement('div');
+            card.className = 'driver-card';
+            card.dataset.driverId = driver.id; // This is actually the trip ID from available-drivers
+            card.dataset.tripId = driver.id; // Store trip ID explicitly
+
+            // Use default rating if not provided
+            const rating = driver.rating || 4.5;
+
+            // Generate star rating HTML
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = rating % 1 !== 0;
+            const emptyStars = 5 - Math.ceil(rating);
+
+            let starsHTML = '<div class="rating-stars">';
+            for (let i = 0; i < fullStars; i++) {
+                starsHTML += '<span class="star">★</span>';
+            }
+            if (hasHalfStar) {
+                starsHTML += '<span class="star">★</span>';
+            }
+            for (let i = 0; i < emptyStars; i++) {
+                starsHTML += '<span class="star empty">★</span>';
+            }
+            starsHTML += '</div>';
+
+            // Format locations
+            const pickupLocation = getLocationName(startLocation);
+            let dropoffLocation = getLocationName(endLocation);
+            let dropoffLocationId = `dropoff-location-${driver.id}`;
+
+            // For partial rides, we'll update the dropoff location after geocoding
+            if (driver.is_partial_ride && driver.actual_dropoff_lat && driver.actual_dropoff_lng) {
+                dropoffLocation = 'Loading actual drop-off location...';
+                // Geocode the actual drop-off location
+                setTimeout(() => {
+                    geocodeDropoffLocation(driver.actual_dropoff_lat, driver.actual_dropoff_lng, dropoffLocationId);
+                }, 100);
+            }
+
+            card.innerHTML = `
+                <div class="driver-header">
+                    <div class="driver-info">
+                        <div class="driver-name">${driver.driver_name || driver.name}</div>
+                        <div class="driver-rating">
+                            ${starsHTML}
+                            <span class="rating-value">${rating}</span>
+                        </div>
+                    </div>
+                    <div class="driver-eta">
+                        <div class="eta-time">${driver.eta}</div>
+                        <div class="eta-label">MIN AWAY</div>
+                    </div>
+                </div>
+                
+                <div class="vehicle-info">
+                    <div class="vehicle-icon"></div>
+                    <div class="vehicle-details">
+                        <div class="vehicle-model">
+                            Vehicle
+                            <span class="vehicle-type">Sedan</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="driver-route-section">
+                    <div class="route-section-title">Driver's Route</div>
+                    <div class="route-info-card">
+                        <div class="route-locations">
+                            <div class="location-item">
+                                <div class="location-icon pickup">●</div>
+                                <div class="location-details">
+                                    <div class="location-label">Will pick you up at</div>
+                                    <div class="location-address">${pickupLocation}</div>
+                                    ${driver.pickup_distance ? `<div style="font-size: 12px; color: #4CAF50; margin-top: 4px;">Driver passes within ${driver.pickup_distance}m of pickup</div>` : ''}
+                                </div>
+                            </div>
+                            <div class="route-line-vertical"></div>
+                            <div class="location-item">
+                                <div class="location-icon dropoff">📍</div>
+                                <div class="location-details">
+                                    <div class="location-label">Will drop you at</div>
+                                    <div class="location-address" id="${dropoffLocationId}">${dropoffLocation}</div>
+                                    ${driver.is_partial_ride ?
+                    `<div style="font-size: 12px; color: #ff6b00; margin-top: 4px; font-weight: 500;">
+                                            <strong>⚠️ Partial Ride:</strong> Driver can take you ${driver.distance_saved_percentage}% of the way<br>
+                                            You'll need to cover remaining ${driver.remaining_distance}km to reach ${getLocationName(endLocation)}
+                                        </div>` :
+                    driver.dropoff_distance ? `<div style="font-size: 12px; color: #2196f3; margin-top: 4px;">Driver passes within ${driver.dropoff_distance}m of destination</div>` : ''
+                }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="price-info">
+                    <div>
+                        <div class="price-label">Estimated Fare</div>
+                        <div class="price-estimate">Shared ride price</div>
+                    </div>
+                    <div class="price-value">
+                        <span class="price-currency">₹</span>${driver.estimated_fare || driver.price}
+                    </div>
+                </div>
+                
+            `;
+
+            card.addEventListener('click', (e) => {
+                selectRealDriver(driver.id);
+            });
+
+            // Add hover event listeners
+            card.addEventListener('mouseenter', async () => {
+                showActualDropoffLocation(driver.id);
+                // Show driver's route on hover
+                await showDriverRoute(driver);
+            });
+
+            card.addEventListener('mouseleave', () => {
+                hideActualDropoffLocation();
+                // Clear driver's route on hover end
+                clearDriverRoute();
+            });
+
+            return card;
+        }
+
+        async function selectRealDriver(driverId) {
+            // Update selected state in UI
+            document.querySelectorAll('.driver-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            const selectedCard = document.querySelector(`[data-driver-id="${driverId}"]`);
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+            }
+
+            // Highlight marker on map
+            driverMarkers.forEach(marker => {
+                if (marker.driverId === driverId) {
+                    marker.setAnimation(google.maps.Animation.BOUNCE);
+                    setTimeout(() => marker.setAnimation(null), 2000);
+                } else {
+                    marker.setAnimation(null);
+                }
+            });
+
+            selectedDriverId = driverId;
+
+            // Find the selected driver data
+            selectedDriverData = driversData.find(d => d.id === driverId);
+
+            // Show driver's route
+            if (selectedDriverData) {
+                await showDriverRoute(selectedDriverData);
+            }
+
+            // Create match in database
+            try {
+                // Get the fare amount from the selected card
+                const fareText = document.querySelector(`[data-driver-id="${driverId}"] .price-value`).textContent.replace('₹', '').trim();
+                const fareAmount = parseInt(fareText);
+
+                console.log('Creating match with:', {
+                    trip_id: driverId, // This is actually the trip ID from available-drivers response
+                    ride_request_id: currentRequestId,
+                    fare_amount: fareAmount
+                });
+
+                const matchData = {
+                    trip_id: driverId, // driverId is actually the trip ID from the available-drivers response
+                    ride_request_id: currentRequestId,
+                    pickup_lat: pickupCoords.lat,
+                    pickup_lng: pickupCoords.lng,
+                    dropoff_lat: dropoffCoords.lat,
+                    dropoff_lng: dropoffCoords.lng,
+                    fare_amount: fareAmount
+                };
+
+                const response = await fetch('/api/matches', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', // Include cookies for authentication
+                    body: JSON.stringify(matchData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Match created successfully:', result);
+                    showNotification('Ride confirmed! Driver has been notified and will respond soon.', 'success');
+                    updateStatusIndicator('Ride confirmed! Waiting for driver response...');
+                } else {
+                    const errorData = await response.json();
+                    console.error('Match creation failed:', errorData);
+                    throw new Error(errorData.message || 'Failed to create match');
+                }
+            } catch (error) {
+                console.error('Error creating match:', error);
+                showNotification('Error confirming ride. Please try again.', 'error');
+            }
+        }
+
+        function selectDriver(driverId) {
+            // Update selected state in UI
+            document.querySelectorAll('.driver-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            const selectedCard = document.querySelector(`[data-driver-id="${driverId}"]`);
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+            }
+
+            // Highlight marker on map
+            driverMarkers.forEach(marker => {
+                if (marker.driverId === driverId) {
+                    marker.setAnimation(google.maps.Animation.BOUNCE);
+                    setTimeout(() => marker.setAnimation(null), 2000);
+                } else {
+                    marker.setAnimation(null);
+                }
+            });
+
+            selectedDriverId = driverId;
+
+            // Show confirmation
+            showNotification(`Driver selected! Confirming your ride...`, 'success');
+
+            // Simulate booking process
+            setTimeout(() => {
+                updateStatusIndicator('Ride confirmed! Driver is on the way');
+                showNotification('Your ride has been confirmed!', 'success');
+            }, 2000);
+        }
+
+        function setupEventHandlers() {
+            const filterBtn = document.querySelector('.filter-btn');
+            if (filterBtn) {
+                filterBtn.addEventListener('click', () => {
+                    showNotification('Filter options coming soon!', 'info');
+                });
+            }
+        }
+
+        function updateStatusIndicator(message, type = 'info') {
+            const statusText = document.getElementById('status-text');
+            const statusIndicator = document.querySelector('.status-indicator');
+
+            if (statusText) {
+                statusText.textContent = message;
+            }
+
+            if (statusIndicator) {
+                if (type === 'error') {
+                    statusIndicator.style.borderColor = '#f44336';
+                } else if (type === 'success') {
+                    statusIndicator.style.borderColor = '#4CAF50';
+                }
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.padding = '15px 20px';
+            notification.style.borderRadius = '8px';
+            notification.style.color = 'white';
+            notification.style.zIndex = '1002';
+            notification.style.fontWeight = '500';
+            notification.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+
+            switch (type) {
+                case 'error':
+                    notification.style.backgroundColor = '#f44336';
+                    break;
+                case 'success':
+                    notification.style.backgroundColor = '#4CAF50';
+                    break;
+                case 'info':
+                default:
+                    notification.style.backgroundColor = '#2196f3';
+            }
+
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Function to show actual drop-off location on hover
+        function showActualDropoffLocation(driverId) {
+            // Find the driver data
+            const driver = driversData.find(d => d.id === driverId);
+            if (!driver) return; // Don't check for partial ride here, we want to show route for all drivers
+
+            // Only show actual dropoff marker for partial rides
+            if (driver.is_partial_ride) {
+                // Remove any existing marker
+                hideActualDropoffLocation();
+
+                // Create orange dot marker for actual drop-off location
+                const orangeDotIcon = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="#ff6b00" stroke="white" stroke-width="2"/>
+                        <circle cx="12" cy="12" r="4" fill="white" opacity="0.8"/>
+                    </svg>
+                `);
+
+                actualDropoffMarker = new google.maps.Marker({
+                    position: {
+                        lat: driver.actual_dropoff_lat,
+                        lng: driver.actual_dropoff_lng
+                    },
+                    map: map,
+                    title: 'Driver will drop you here',
+                    icon: {
+                        url: orangeDotIcon,
+                        scaledSize: new google.maps.Size(24, 24),
+                        anchor: new google.maps.Point(12, 12)
+                    }
+                });
+
+                // Draw dotted line from actual drop-off to final destination
+                const lineSymbol = {
+                    path: 'M 0,-1 0,1',
+                    strokeOpacity: 1,
+                    scale: 4
+                };
+
+                dropoffPathLine = new google.maps.Polyline({
+                    path: [
+                        { lat: driver.actual_dropoff_lat, lng: driver.actual_dropoff_lng },
+                        { lat: dropoffCoords.lat, lng: dropoffCoords.lng }
+                    ],
+                    strokeOpacity: 0,
+                    icons: [{
+                        icon: lineSymbol,
+                        offset: '0',
+                        repeat: '20px'
+                    }],
+                    strokeColor: '#ff6b00',
+                    map: map
+                });
+
+                // Update the hover text for partial rides
+                const card = document.querySelector(`[data-driver-id="${driverId}"]`);
+                if (card) {
+                    const dropoffAddress = card.querySelector('.location-item:last-child .location-address');
+                    if (dropoffAddress) {
+                        // Store the current address text
+                        dropoffAddress.dataset.originalText = dropoffAddress.textContent;
+                        // Show hover indicator with actual location
+                        const geocoder = new google.maps.Geocoder();
+                        const latlng = { lat: driver.actual_dropoff_lat, lng: driver.actual_dropoff_lng };
+
+                        geocoder.geocode({ location: latlng }, (results, status) => {
+                            if (status === 'OK' && results[0]) {
+                                const actualLocation = getLocationName(results[0].formatted_address);
+                                dropoffAddress.innerHTML = `<span style="color: #ff6b00;">⬇ ${actualLocation} (showing on map)</span>`;
+                            } else {
+                                dropoffAddress.innerHTML = `<span style="color: #ff6b00;">⬇ Actual drop-off point (showing on map)</span>`;
+                            }
+                        });
+                    }
+                }
+            }
+
+            hoveredDriverId = driverId;
+        }
+
+        // Function to hide actual drop-off location
+        function hideActualDropoffLocation() {
+            if (actualDropoffMarker) {
+                actualDropoffMarker.setMap(null);
+                actualDropoffMarker = null;
+            }
+
+            if (dropoffPathLine) {
+                dropoffPathLine.setMap(null);
+                dropoffPathLine = null;
+            }
+
+            // Restore the original text
+            if (hoveredDriverId) {
+                const card = document.querySelector(`[data-driver-id="${hoveredDriverId}"]`);
+                if (card) {
+                    const dropoffAddress = card.querySelector('.location-item:last-child .location-address');
+                    if (dropoffAddress) {
+                        const driver = driversData.find(d => d.id === hoveredDriverId);
+                        if (driver && driver.is_partial_ride && dropoffAddress.dataset.originalText) {
+                            // Restore the geocoded address for partial rides
+                            dropoffAddress.textContent = dropoffAddress.dataset.originalText;
+                        } else if (!driver || !driver.is_partial_ride) {
+                            // Restore destination for non-partial rides
+                            dropoffAddress.textContent = getLocationName(endLocation);
+                        }
+                    }
+                }
+                hoveredDriverId = null;
+            }
+        }
+
+        // Function to geocode drop-off location for partial rides
+        function geocodeDropoffLocation(lat, lng, elementId) {
+            const geocoder = new google.maps.Geocoder();
+            const latlng = { lat: lat, lng: lng };
+
+            geocoder.geocode({ location: latlng }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    // Get the formatted address
+                    const address = results[0].formatted_address;
+                    // Update the element with the geocoded address
+                    const element = document.getElementById(elementId);
+                    if (element) {
+                        element.textContent = getLocationName(address);
+                    }
+                } else {
+                    console.error('Geocode failed:', status);
+                    // Fallback to showing coordinates
+                    const element = document.getElementById(elementId);
+                    if (element) {
+                        element.textContent = `Near ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                    }
+                }
+            });
+        }
+
+        // Function to show driver's route
+        async function showDriverRoute(driver) {
+            try {
+                // Clear any existing driver route
+                clearDriverRoute();
+
+                // Always pass the passenger's destination coordinates to the backend
+                // The backend will determine the actual drop-off point using the matching algorithm
+                const params = new URLSearchParams({
+                    pickup_lat: pickupCoords.lat,
+                    pickup_lng: pickupCoords.lng,
+                    dropoff_lat: dropoffCoords.lat,  // Always use passenger's destination
+                    dropoff_lng: dropoffCoords.lng   // Backend will calculate actual drop-off
+                });
+
+                const response = await fetch(`/api/trips/${driver.id}/route-segment?${params}`, {
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    console.error('Failed to fetch route segment');
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Route segment data:', data);
+
+                // Create the driver's route polyline
+                if (data.routeSegment && data.routeSegment.length > 0) {
+                    // Convert route segment to Google Maps LatLng objects
+                    const routePath = data.routeSegment.map(point =>
+                        new google.maps.LatLng(point.lat, point.lng)
+                    );
+
+                    // Create a green polyline for the driver's route
+                    driverRouteLine = new google.maps.Polyline({
+                        path: routePath,
+                        geodesic: true,
+                        strokeColor: '#4CAF50', // Green color
+                        strokeOpacity: 0.8,
+                        strokeWeight: 6,
+                        map: map,
+                        zIndex: 10 // Make sure it appears above other elements
+                    });
+
+                    // Add animated arrow icons along the route
+                    const lineSymbol = {
+                        path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                        scale: 3,
+                        strokeColor: '#ffffff',
+                        strokeWeight: 2,
+                        fillColor: '#4CAF50',
+                        fillOpacity: 1
+                    };
+
+                    driverRouteLine.setOptions({
+                        icons: [{
+                            icon: lineSymbol,
+                            offset: '0',
+                            repeat: '100px'
+                        }]
+                    });
+
+                    // Add markers for pickup and dropoff points on driver's route
+                    const pickupMarkerIcon = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="16" cy="16" r="14" fill="#4CAF50" stroke="white" stroke-width="3"/>
+                            <text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">P</text>
+                        </svg>
+                    `);
+
+                    const dropoffMarkerIcon = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="16" cy="16" r="14" fill="${data.isPartialRide ? '#ff6b00' : '#f44336'}" stroke="white" stroke-width="3"/>
+                            <text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">D</text>
+                        </svg>
+                    `);
+
+                    // Add pickup marker
+                    const pickupMarker = new google.maps.Marker({
+                        position: { lat: pickupCoords.lat, lng: pickupCoords.lng },
+                        map: map,
+                        title: 'Pickup Point',
+                        icon: {
+                            url: pickupMarkerIcon,
+                            scaledSize: new google.maps.Size(32, 32),
+                            anchor: new google.maps.Point(16, 16)
+                        },
+                        zIndex: 100
+                    });
+                    driverRouteMarkers.push(pickupMarker);
+
+                    // Add dropoff marker using the actual drop-off point from backend
+                    const actualDropoffPoint = data.actualDropoffPoint;
+                    const dropoffMarker = new google.maps.Marker({
+                        position: { lat: actualDropoffPoint.lat, lng: actualDropoffPoint.lng },
+                        map: map,
+                        title: data.isPartialRide ? 'Actual Drop-off Point' : 'Drop-off Point',
+                        icon: {
+                            url: dropoffMarkerIcon,
+                            scaledSize: new google.maps.Size(32, 32),
+                            anchor: new google.maps.Point(16, 16)
+                        },
+                        zIndex: 100
+                    });
+                    driverRouteMarkers.push(dropoffMarker);
+
+                    // For partial rides, also show the remaining path to passenger's destination
+                    if (data.isPartialRide && data.remainingDistance > 0) {
+                        // Draw dotted line from actual drop-off to passenger's final destination
+                        const remainingPathLine = new google.maps.Polyline({
+                            path: [
+                                { lat: actualDropoffPoint.lat, lng: actualDropoffPoint.lng },
+                                { lat: data.passengerDestination.lat, lng: data.passengerDestination.lng }
+                            ],
+                            strokeOpacity: 0,
+                            icons: [{
+                                icon: {
+                                    path: 'M 0,-1 0,1',
+                                    strokeOpacity: 1,
+                                    scale: 4,
+                                    strokeColor: '#ff6b00'
+                                },
+                                offset: '0',
+                                repeat: '20px'
+                            }],
+                            map: map,
+                            zIndex: 5
+                        });
+                        driverRouteMarkers.push({ setMap: (map) => remainingPathLine.setMap(map) });
+
+                        // Add final destination marker
+                        const finalDestMarker = new google.maps.Marker({
+                            position: { lat: data.passengerDestination.lat, lng: data.passengerDestination.lng },
+                            map: map,
+                            title: 'Your Final Destination',
+                            icon: {
+                                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="16" cy="16" r="14" fill="#9e9e9e" stroke="white" stroke-width="3"/>
+                                        <text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">F</text>
+                                    </svg>
+                                `),
+                                scaledSize: new google.maps.Size(32, 32),
+                                anchor: new google.maps.Point(16, 16)
+                            },
+                            zIndex: 100
+                        });
+                        driverRouteMarkers.push(finalDestMarker);
+                    }
+
+                    // Create info window with route details
+                    const routeInfoContent = `
+                        <div style="padding: 10px; max-width: 250px;">
+                            <h4 style="margin: 0 0 10px 0; color: #333;">Driver's Route</h4>
+                            <p style="margin: 5px 0; color: #666;">
+                                <strong>Distance:</strong> ${(data.segmentDistance / 1000).toFixed(1)} km
+                            </p>
+                            <p style="margin: 5px 0; color: #666;">
+                                <strong>Duration:</strong> ~${data.segmentDuration} minutes
+                            </p>
+                            ${data.isPartialRide ?
+                            `<p style="margin: 10px 0 0 0; color: #ff6b00; font-weight: bold;">
+                                    ⚠️ Partial Ride - Driver will drop you ${driver.distance_saved_percentage}% of the way<br>
+                                    Remaining: ${(data.remainingDistance / 1000).toFixed(1)} km to your destination
+                                </p>` : ''
+                        }
+                        </div>
+                    `;
+
+                    routeInfoWindow = new google.maps.InfoWindow({
+                        content: routeInfoContent,
+                        position: routePath[Math.floor(routePath.length / 2)] // Middle of the route
+                    });
+
+                    // Show the info window briefly
+                    routeInfoWindow.open(map);
+                    setTimeout(() => {
+                        if (routeInfoWindow) {
+                            routeInfoWindow.close();
+                        }
+                    }, 5000);
+
+                    // Adjust map bounds to show the entire route including final destination for partial rides
+                    const bounds = new google.maps.LatLngBounds();
+                    routePath.forEach(point => bounds.extend(point));
+                    if (data.isPartialRide) {
+                        bounds.extend(new google.maps.LatLng(data.passengerDestination.lat, data.passengerDestination.lng));
+                    }
+                    map.fitBounds(bounds);
+
+                    // Add a slight zoom out for better visibility
+                    setTimeout(() => {
+                        const currentZoom = map.getZoom();
+                        if (currentZoom > 14) {
+                            map.setZoom(14);
+                        }
+                    }, 500);
+                }
+
+            } catch (error) {
+                console.error('Error showing driver route:', error);
+                showNotification('Unable to display driver route', 'error');
+            }
+        }
+
+        // Function to clear driver route from map
+        function clearDriverRoute() {
+            // Remove the polyline
+            if (driverRouteLine) {
+                driverRouteLine.setMap(null);
+                driverRouteLine = null;
+            }
+
+            // Remove route markers
+            driverRouteMarkers.forEach(marker => {
+                marker.setMap(null);
+            });
+            driverRouteMarkers = [];
+
+            // Close info window
+            if (routeInfoWindow) {
+                routeInfoWindow.close();
+                routeInfoWindow = null;
+            }
+        }
+
+        // Make functions globally accessible
+        window.selectDriver = selectDriver;
+        window.selectRealDriver = selectRealDriver;
+    </script>
+
+    <!-- Google Maps API -->
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFYLT473lC55zLeTyL0Njnh0xOWJIIQ_s&libraries=places&callback=initializeApp"></script>
+</body>
+
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="Sign up for RideMate - Carpool and ride-sharing app">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <title>Sign Up - RideMate</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="/icons/icon-72x72.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="auth.css">
+    <link rel="stylesheet" href="pwa-mobile.css">
+    <link rel="stylesheet" href="mobile-responsive.css">
+</head>
+
+<body>
+    <header>
+        <nav>
+            <div class="logo"><a href="index.html">RideMate</a></div>
+            <ul class="nav-links">
+                <li><a href="index.html#ride">Ride</a></li>
+                <li><a href="index.html#drive">Drive</a></li>
+                <li><a href="index.html#business">Business</a></li>
+            </ul>
+            <div class="header-right">
+                <a href="login.html" class="login-btn">Log in</a>
+            </div>
+        </nav>
+    </header>
+    <main class="auth-container">
+        <div class="auth-box">
+            <h1>Create your account</h1>
+            <form id="signup-form">
+                <div class="input-group">
+                    <input type="text" id="name" placeholder="Full name" required>
+                </div>
+                <div class="input-group">
+                    <input type="email" id="email" placeholder="Email address" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="Password" required>
+                </div>
+                <button type="submit" class="auth-btn">Sign up</button>
+                <div id="otp-section" style="display: none;">
+                    <div class="input-group">
+                        <input type="text" id="otp" placeholder="Enter OTP">
+                    </div>
+                    <button type="button" id="verify-otp-btn" class="auth-btn">Verify OTP</button>
+                </div>
+                <p class="auth-switch">Already have an account? <a href="login.html">Log in</a></p>
+            </form>
+        </div>
+    </main>
+    <script src="auth.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .catch(err => console.log('SW registration failed'));
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,848 @@
+/* ========================================
+   Enhanced Mobile-First Responsive Styles
+   Makes web app feel like a native mobile app
+   ======================================== */
+
+/* Mobile-first base styles */
+@media (max-width: 768px) {
+
+    /* Header mobile optimization */
+    header {
+        padding: 12px 0;
+    }
+
+    nav {
+        padding: 0 16px;
+        flex-wrap: wrap;
+    }
+
+    .logo {
+        font-size: 22px;
+        margin-right: 0;
+    }
+
+    /* Hide desktop nav on mobile */
+    .nav-links {
+        display: none;
+    }
+
+    .header-right {
+        gap: 8px;
+    }
+
+    .language-selector,
+    .help-link {
+        display: none;
+    }
+
+    .login-btn,
+    .signup-btn {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+
+    /* Hero section mobile */
+    .hero-section {
+        flex-direction: column;
+        padding: 20px 16px 40px;
+        gap: 30px;
+    }
+
+    .hero-content {
+        margin-right: 0;
+        max-width: 100%;
+        min-width: auto;
+        order: 1;
+    }
+
+    .hero-content h1 {
+        font-size: 32px;
+        text-align: center;
+        margin-bottom: 24px;
+    }
+
+    .hero-image {
+        order: 0;
+        max-width: 280px;
+        min-width: auto;
+    }
+
+    /* Search form mobile */
+    .search-form {
+        padding: 20px;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    .input-group {
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        border-radius: 12px;
+    }
+
+    .input-group input {
+        font-size: 16px;
+        /* Prevents iOS zoom */
+    }
+
+    /* Action buttons mobile */
+    .action-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .action-btn {
+        width: 100%;
+        padding: 16px;
+        font-size: 16px;
+        min-height: 54px;
+        border-radius: 12px;
+    }
+
+    .login-activity-link {
+        font-size: 14px;
+        margin-top: 8px;
+    }
+
+    /* Suggestions section mobile */
+    .suggestions-section {
+        padding: 40px 16px;
+    }
+
+    .suggestions-section h2 {
+        font-size: 28px;
+        margin-bottom: 24px;
+    }
+
+    .suggestions-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .suggestion-item {
+        padding: 20px;
+        border-radius: 16px;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .suggestion-item .suggestion-text {
+        margin-right: 0;
+        margin-bottom: 16px;
+    }
+
+    .suggestion-item img {
+        width: 80px;
+    }
+
+    .suggestion-item h3 {
+        font-size: 20px;
+    }
+
+    .suggestion-item p {
+        font-size: 14px;
+    }
+
+    /* Plan for later section mobile */
+    .plan-for-later-section {
+        padding: 40px 16px;
+    }
+
+    .plan-content {
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .plan-content img {
+        max-width: 100%;
+        min-width: auto;
+        border-radius: 16px;
+    }
+
+    .plan-text {
+        max-width: 100%;
+        min-width: auto;
+    }
+
+    .plan-text h2 {
+        font-size: 28px;
+        text-align: center;
+    }
+
+    .plan-text h3 {
+        font-size: 18px;
+        text-align: center;
+    }
+
+    .benefits-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    /* Drive earn section mobile */
+    .drive-earn-section,
+    .uber-business-section {
+        padding: 40px 16px;
+    }
+
+    .drive-earn-content,
+    .uber-business-content {
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .uber-business-content {
+        flex-direction: column;
+    }
+
+    .drive-earn-text h2,
+    .uber-business-text h2 {
+        font-size: 28px;
+        text-align: center;
+    }
+
+    .drive-earn-text p,
+    .uber-business-text p {
+        font-size: 15px;
+        text-align: center;
+    }
+
+    .get-started-btn {
+        display: block;
+        width: 100%;
+        text-align: center;
+        margin-right: 0;
+        margin-bottom: 16px;
+    }
+
+    .sign-in-link,
+    .check-solutions-link {
+        display: block;
+        text-align: center;
+    }
+
+    /* App download section mobile */
+    .app-download-section {
+        padding: 40px 16px;
+    }
+
+    .app-download-content h2 {
+        font-size: 28px;
+        margin-bottom: 24px;
+    }
+
+    .app-cards {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .app-card {
+        width: 100%;
+        max-width: 280px;
+        margin: 0 auto;
+    }
+
+    /* Footer mobile */
+    footer {
+        padding: 40px 16px 24px;
+    }
+
+    .footer-links {
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .footer-column {
+        min-width: auto;
+        margin-bottom: 0;
+    }
+
+    .footer-column h3 {
+        font-size: 16px;
+        margin-bottom: 12px;
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        text-align: center;
+        gap: 16px;
+    }
+
+    .social-links {
+        justify-content: center;
+    }
+
+    .app-store-links {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    /* User menu mobile */
+    .user-menu {
+        position: relative;
+    }
+
+    /* Mobile dropdown - appears under profile button */
+    .user-dropdown {
+        position: absolute !important;
+        top: calc(100% + 10px) !important;
+        right: 0 !important;
+        left: auto !important;
+        bottom: auto !important;
+        width: 260px !important;
+        max-width: calc(100vw - 40px) !important;
+        border-radius: 16px;
+        padding: 12px;
+        background: white !important;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2),
+            0 2px 10px rgba(0, 0, 0, 0.1) !important;
+        z-index: 100000 !important;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px) scale(0.95);
+        transform-origin: top right;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        margin-top: 0 !important;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .user-menu.open .user-dropdown {
+        transform: translateY(0) scale(1) !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
+
+    /* Mobile dropdown items */
+    .user-dropdown .dropdown-item {
+        padding: 14px 16px;
+        font-size: 15px;
+        border-radius: 10px;
+        margin-bottom: 2px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #333;
+        transition: background 0.15s ease;
+    }
+
+    .user-dropdown .dropdown-item:hover,
+    .user-dropdown .dropdown-item:active {
+        background: #f8f8f8;
+    }
+
+    .user-dropdown .dropdown-item .icon {
+        font-size: 18px;
+    }
+
+    .user-dropdown .dropdown-divider {
+        margin: 8px 0;
+        height: 1px;
+        background: #eee;
+    }
+
+    /* Logout button styling for mobile */
+    .user-dropdown .logout-btn {
+        color: #dc2626 !important;
+        font-weight: 600;
+    }
+
+    .user-dropdown .logout-btn:hover {
+        background: #fef2f2 !important;
+    }
+
+    /* Auth pages mobile */
+    .auth-container {
+        padding: 20px 16px;
+    }
+
+    .auth-box {
+        padding: 24px 20px;
+        border-radius: 16px;
+    }
+
+    .auth-box h2 {
+        font-size: 24px;
+    }
+
+    /* Confirmation pages mobile */
+    .confirmation-hero {
+        padding: 20px 16px;
+    }
+
+    .confirmation-content {
+        padding: 20px;
+        border-radius: 16px;
+    }
+
+    .confirmation-title {
+        font-size: 22px;
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 360px) {
+    .hero-content h1 {
+        font-size: 26px;
+    }
+
+    .suggestions-section h2,
+    .plan-text h2,
+    .drive-earn-text h2,
+    .uber-business-text h2,
+    .app-download-content h2 {
+        font-size: 24px;
+    }
+
+    .action-btn {
+        font-size: 15px;
+        padding: 14px;
+    }
+}
+
+/* Hamburger menu for mobile */
+.mobile-menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 8px;
+}
+
+@media (max-width: 768px) {
+    .mobile-menu-toggle {
+        display: block;
+    }
+}
+
+/* Smooth animations for app-like feel */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+input {
+    transition: transform 0.1s ease, opacity 0.2s ease;
+}
+
+button:active,
+a:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+}
+
+/* Bottom navigation bar for app-like experience */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    padding: 8px 0;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 1000;
+    justify-content: space-around;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+    .mobile-bottom-nav {
+        display: flex;
+    }
+
+    /* Add padding to body to account for bottom nav */
+    body {
+        padding-bottom: 70px;
+    }
+}
+
+.mobile-bottom-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 8px 16px;
+}
+
+.mobile-bottom-nav a.active {
+    color: #000;
+}
+
+.mobile-bottom-nav .nav-icon {
+    font-size: 22px;
+}
+
+/* Full-screen mobile modal styles */
+.mobile-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: white;
+    z-index: 2000;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+}
+
+.mobile-modal.show {
+    display: block;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* iOS-style back gesture area */
+@media (max-width: 768px) {
+    main {
+        min-height: 100vh;
+    }
+}
+
+/* ========================================
+   Professional UX Enhancements
+   ======================================== */
+
+/* Smooth scrolling for the entire page */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Basic body setup - allow normal scrolling */
+body {
+    min-height: 100vh;
+}
+
+/* Prevent any element from causing horizontal overflow */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+/* Focus states for better accessibility */
+input:focus,
+button:focus,
+a:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+}
+
+/* Enhanced input focus styles */
+.input-group:focus-within {
+    border-color: #4F46E5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+}
+
+/* Button loading state */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-top: -8px;
+    margin-left: -8px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: btn-spinner 0.6s linear infinite;
+}
+
+@keyframes btn-spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Improved notification positioning on mobile */
+@media (max-width: 768px) {
+
+    .notification,
+    .action-notification {
+        top: auto !important;
+        bottom: 80px !important;
+        right: 16px !important;
+        left: 16px !important;
+        max-width: none !important;
+        text-align: center;
+    }
+}
+
+/* Datetime picker mobile improvements */
+@media (max-width: 768px) {
+    .datetime-dropdown {
+        position: fixed !important;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        top: auto !important;
+        border-radius: 20px 20px 0 0;
+        padding: 24px;
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+        z-index: 1001;
+    }
+
+    .datetime-dropdown.active {
+        display: block !important;
+    }
+
+    .schedule-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .schedule-input {
+        width: 100% !important;
+        min-height: 48px;
+    }
+
+    .confirm-schedule-btn {
+        width: 100%;
+        padding: 16px;
+        font-size: 16px;
+        margin-top: 16px;
+    }
+}
+
+/* Scroll to top button */
+.scroll-to-top {
+    position: fixed;
+    bottom: 90px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+    background: #000;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.scroll-to-top.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.scroll-to-top:hover {
+    transform: scale(1.1);
+}
+
+@media (min-width: 769px) {
+    .scroll-to-top {
+        bottom: 30px;
+        right: 30px;
+    }
+}
+
+/* Improved link hover states */
+a:hover {
+    opacity: 0.85;
+}
+
+/* Better placeholder styling */
+input::placeholder {
+    color: #9CA3AF;
+    opacity: 1;
+}
+
+/* Prevent blue highlight on tap */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Skeleton loading animation */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Ripple effect on buttons */
+.action-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.action-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.6s ease, height 0.6s ease;
+}
+
+.action-btn:active::before {
+    width: 300%;
+    height: 300%;
+}
+
+/* Active state for bottom nav */
+.mobile-bottom-nav a {
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.mobile-bottom-nav a:active {
+    transform: scale(0.9);
+}
+
+/* Hide footer on mobile for cleaner app look */
+@media (max-width: 768px) {
+    footer {
+        display: none;
+    }
+
+    /* Show only essential footer content if needed */
+    .footer-essential {
+        display: block;
+        padding: 20px 16px;
+        text-align: center;
+        font-size: 12px;
+        color: #9CA3AF;
+    }
+}
+
+/* Form validation states */
+.input-group.error {
+    border-color: #EF4444;
+    animation: shake 0.3s ease;
+}
+
+.input-group.success {
+    border-color: #10B981;
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-5px);
+    }
+
+    75% {
+        transform: translateX(5px);
+    }
+}
+
+/* Toast notification improvements */
+.toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #1F2937;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 10001;
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    white-space: nowrap;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Improve touch target size */
+@media (max-width: 768px) {
+
+    .dropdown-item,
+    .nav-links a,
+    .footer-column a {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+}
+
+/* Loading overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.loading-overlay.show {
+    display: flex;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f0f0f0;
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

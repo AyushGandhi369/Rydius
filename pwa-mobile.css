@@ -1,0 +1,293 @@
+/* ========================================
+   PWA Mobile Optimizations - RideMate
+   ======================================== */
+
+/* Touch-friendly improvements */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Allow normal scrolling - CRITICAL */
+html {
+    overflow-x: hidden;
+    overflow-y: scroll !important;
+    height: auto !important;
+}
+
+body {
+    overflow-x: hidden;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    height: auto !important;
+    min-height: 100vh;
+}
+
+/* Ensure main content can scroll */
+main {
+    position: relative;
+    z-index: 1;
+}
+
+/* Fixed elements should not block scrolling on the page behind them */
+.active-trip-prompt,
+.action-notification,
+.notification,
+.pwa-install-prompt,
+.mobile-bottom-nav {
+    pointer-events: auto;
+}
+
+/* Safe area padding for notched devices */
+.auth-container,
+.hero-section,
+.content-body {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+/* PWA standalone mode specific styles */
+@media all and (display-mode: standalone) {
+
+    /* Hide browser UI elements when in standalone mode */
+    header nav {
+        padding-top: max(20px, env(safe-area-inset-top));
+    }
+
+    /* Make header sticky in app mode */
+    header {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }
+
+    /* Larger touch targets */
+    .btn,
+    .action-btn,
+    .auth-btn,
+    button {
+        min-height: 48px;
+        min-width: 48px;
+    }
+}
+
+/* Mobile-first touch improvements */
+@media (max-width: 768px) {
+
+    /* Larger buttons for touch */
+    .btn,
+    .action-btn,
+    .auth-btn,
+    button {
+        min-height: 48px;
+        font-size: 16px;
+        padding: 14px 24px;
+    }
+
+    /* Larger form inputs */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="date"],
+    input[type="time"] {
+        min-height: 48px;
+        font-size: 16px;
+        /* Prevents iOS zoom on focus */
+        padding: 12px 16px;
+    }
+
+    /* Better link tap areas */
+    a {
+        padding: 8px;
+        margin: -8px;
+    }
+
+    /* Optimize dropdown for mobile */
+    .dropdown-content {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        top: auto;
+        border-radius: 20px 20px 0 0;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+/* Ultra-small screens */
+@media (max-width: 360px) {
+    .hero-content h1 {
+        font-size: 28px;
+    }
+
+    .confirmation-title {
+        font-size: 24px;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .action-btn {
+        width: 100%;
+    }
+}
+
+/* Offline indicator */
+.offline-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #f44336, #e91e63);
+    color: white;
+    text-align: center;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 10000;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+}
+
+.offline-indicator.show {
+    transform: translateY(0);
+}
+
+/* PWA Install Prompt Banner */
+.pwa-install-prompt {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+    color: white;
+    padding: 20px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 10000;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+}
+
+.pwa-install-prompt.show {
+    transform: translateY(0);
+}
+
+.pwa-install-prompt .app-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+}
+
+.pwa-install-prompt .prompt-text {
+    flex: 1;
+}
+
+.pwa-install-prompt .prompt-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.pwa-install-prompt .prompt-subtitle {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.pwa-install-prompt .install-btn {
+    background: white;
+    color: black;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.pwa-install-prompt .dismiss-btn {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    border: none;
+    padding: 8px;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+/* Pull to refresh indicator */
+.pull-to-refresh {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100%);
+    background: #2196f3;
+    color: white;
+    padding: 8px 20px;
+    border-radius: 0 0 20px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 9999;
+    transition: transform 0.3s ease;
+}
+
+.pull-to-refresh.pulling {
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Smooth page transitions for PWA */
+main {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Loading spinner for PWA */
+.pwa-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+}
+
+.pwa-loader .spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.pwa-loader .loader-text {
+    margin-top: 20px;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+}

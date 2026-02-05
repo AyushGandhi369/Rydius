@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="RideMate - Carpool and ride-sharing app. Find rides or offer your route.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="RideMate">
+    <meta name="application-name" content="RideMate">
+    <meta name="msapplication-TileColor" content="#000000">
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <title>RideMate - Ride Sharing</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-72x72.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192x192.png">
+
+    <!-- Splash screens for iOS -->
+    <meta name="apple-mobile-web-app-title" content="RideMate">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="pwa-mobile.css">
+    <link rel="stylesheet" href="mobile-responsive.css">
+</head>
+
+<body>
+    <header>
+        <nav>
+            <div class="logo">RideMate</div>
+            <ul class="nav-links">
+                <li><a href="#">Ride</a></li>
+                <li><a href="#">Drive</a></li>
+                <li><a href="#">Business</a></li>
+                <li class="dropdown">
+                    <a href="#">About <span class="arrow-down"></span></a>
+                    <div class="dropdown-content">
+                        <a href="#">About us</a>
+                        <a href="#">Our offerings</a>
+                        <a href="#">How RideMate works</a>
+                        <a href="#">Sustainability</a>
+                        <a marref="#">Newsroom</a>
+                        <a href="#">Investor relations</a>
+                        <a href="#">Blog</a>
+                        <a href="#">Careers</a>
+                    </div>
+                </li>
+            </ul>
+            <div class="header-right">
+                <div class="language-selector">
+                    <a href="#"><span class="globe-icon">&#9679;</span> EN</a>
+                </div>
+                <a href="#" class="help-link">Help</a>
+
+                <!-- Not logged in state -->
+                <div id="auth-buttons" class="auth-section">
+                    <a href="login.html" class="login-btn">Log in</a>
+                    <a href="signup.html" class="signup-btn">Sign up</a>
+                </div>
+
+                <!-- Logged in state -->
+                <div id="user-menu" class="user-menu" style="display: none;">
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <span id="user-initial">U</span>
+                        </div>
+                        <span id="user-name">User Name</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    <div class="user-dropdown">
+                        <a href="#" class="dropdown-item">
+                            <span class="icon">👤</span>
+                            Profile
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <span class="icon">🚗</span>
+                            My Rides
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <span class="icon">💳</span>
+                            Payment
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <span class="icon">⚙️</span>
+                            Settings
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item logout-btn">
+                            <span class="icon">🚪</span>
+                            Sign out
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero-section">
+            <div class="hero-content">
+                <h1>Seamless Travel, Every Time</h1>
+                <div class="search-form">
+                    <div class="input-group" style="z-index: 1002;">
+                        <span class="icon-dot"></span>
+                        <input type="text" id="pickup-location" placeholder="Enter Initial Location" autocomplete="off"
+                            autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other">
+                        <div id="pickup-suggestions" class="suggestions-list"></div>
+                        <span class="icon-arrow"></span>
+                    </div>
+                    <div class="input-group" style="z-index: 1001;">
+                        <span class="icon-square"></span>
+                        <input type="text" id="dropoff-location" placeholder="Enter Final Location" autocomplete="off"
+                            autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other">
+                        <div id="dropoff-suggestions" class="suggestions-list"></div>
+                    </div>
+                    <div class="input-group datetime-group">
+                        <button type="button" id="datetime-picker" class="datetime-picker-btn">
+                            <span class="icon-clock"></span>
+                            <div class="datetime-content">
+                                <span class="datetime-label">Choose time</span>
+                                <span class="datetime-value">Select date and time</span>
+                            </div>
+                        </button>
+                        <div id="datetime-dropdown" class="datetime-dropdown">
+                            <div class="schedule-inputs">
+                                <div class="schedule-row">
+                                    <input type="date" id="ride-date" class="schedule-input">
+                                    <input type="time" id="ride-time" class="schedule-input">
+                                </div>
+                                <button type="button" class="confirm-schedule-btn">Confirm</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <div class="action-buttons">
+                            <button class="action-btn action-btn-driver">
+                                Heading to
+                            </button>
+                            <button class="action-btn action-btn-passenger">
+                                Be Passenger
+                            </button>
+                        </div>
+                        <a href="login.html" class="login-activity-link">Log in to see your recent activity</a>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img src="images/Untitled.png" alt="RideMate Hero Image">
+            </div>
+        </section>
+
+        <section class="suggestions-section">
+            <h2>Suggestions</h2>
+            <div class="suggestions-grid">
+                <div class="suggestion-item">
+                    <div class="suggestion-text">
+                        <h3>Ride</h3>
+                        <p>Go anywhere with RideMate. Request a ride, hop in, and go.</p>
+                        <a href="#">Details</a>
+                    </div>
+                    <img src="https://mobile-content.uber.com/launch-experience/ride.png" alt="Ride">
+                </div>
+                <div class="suggestion-item">
+                    <div class="suggestion-text">
+                        <h3>Reserve</h3>
+                        <p>Reserve your ride in advance so you can relax on the day of your trip.</p>
+                        <a href="#">Details</a>
+                    </div>
+                    <img src="https://mobile-content.uber.com/uber_reserve/reserve_clock.png" alt="Reserve">
+                </div>
+                <div class="suggestion-item">
+                    <div class="suggestion-text">
+                        <h3>Intercity</h3>
+                        <p>Get convenient, affordable outstation cabs anytime at your door.</p>
+                        <a href="#">Details</a>
+                    </div>
+                    <img src="https://mobile-content.uber.com/launch-experience/intercity.png" alt="Intercity">
+                </div>
+            </div>
+        </section>
+
+        <section class="plan-for-later-section">
+            <div class="plan-content">
+                <img src="https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,h_368,w_552/v1730197725/assets/0f/48c7ba-da13-4fdc-b54c-42878042f513/original/Airport-Fall.png"
+                    alt="Plan for later">
+                <div class="plan-text">
+                    <h2>Plan for later</h2>
+                    <h3>Get your ride right with RideMate Reserve</h3>
+                    <div class="input-group">
+                        <input type="text" placeholder="Choose date and time">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" placeholder="Destination">
+                    </div>
+                    <button class="see-prices-btn">See prices</button>
+                    <div class="benefits-grid">
+                        <div class="benefit-item">
+                            <img src="https://www.uber-assets.com/image/upload/v1542247607/assets/e1/2eddee-f082-49f7-a5fc-22c17977de50/original/calendar-filled.svg"
+                                alt="Calendar">
+                            <p>Choose your exact pickup time up to 90 days in advance.</p>
+                        </div>
+                        <div class="benefit-item">
+                            <img src="https://www.uber-assets.com/image/upload/v1535564184/assets/30/f5ecd4-8ccf-44d0-9976-2833f69df8a9/original/anytime.svg"
+                                alt="Anytime">
+                            <p>Extra wait time included to meet your ride.</p>
+                        </div>
+                    </div>
+                    <a href="#" class="terms-link">See terms</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="drive-earn-section">
+            <div class="drive-earn-content">
+                <div class="drive-earn-text">
+                    <h2>Drive when you want, make what you need</h2>
+                    <p>Make money on your schedule with deliveries or rides—or both. You can use your own car or choose
+                        a rental through RideMate.</p>
+                    <a href="#" class="get-started-btn">Get started</a>
+                    <a href="#" class="sign-in-link">Already have an account? Sign in</a>
+                </div>
+                <img src="https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,h_552,w_552/v1684855112/assets/96/4dd3d1-94e7-481e-b28c-08d59353b9e0/original/earner-illustra.png"
+                    alt="Drive and Earn">
+            </div>
+        </section>
+
+        <section class="uber-business-section">
+            <div class="uber-business-content">
+                <img src="https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,h_552,w_552/v1684887108/assets/76/baf1ea-385a-408c-846b-59211086196c/original/u4b-square.png"
+                    alt="Uber for Business">
+                <div class="uber-business-text">
+                    <h2>The RideMate you know, reimagined for business</h2>
+                    <p>RideMate for Business is a platform for managing global rides and meals, and local deliveries,
+                        for companies of any size.</p>
+                    <a href="#" class="get-started-btn">Get started</a>
+                    <a href="#" class="check-solutions-link">Check out our solutions</a>
+                </div>
+            </div>
+        </section>
+
+
+        <section class="app-download-section">
+            <div class="app-download-content">
+                <h2>It’s easier in the apps</h2>
+                <div class="app-cards">
+                    <div class="app-card">
+                        <img src="https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,h_552,w_552/v1690807720/assets/a5/9986ad-0d9f-4396-8539-389bce97f579/original/Final-Download-Uber-App.png"
+                            alt="Uber App">
+                        <h3>Download the RideMate app</h3>
+                        <p>Scan to download</p>
+                    </div>
+                    <div class="app-card">
+                        <img src="https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,h_552,w_552/v1690813624/assets/50/e85531-2f7e-4ee7-92d4-e39a6801ee2b/original/QR_https___t.uber.com_download-driver-app.png"
+                            alt="Driver App">
+                        <h3>Download the Driver app</h3>
+                        <p>Scan to download</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-top">
+            <div class="language-selector-footer">
+                <a href="#"><span class="globe-icon">&#9679;</span> English</a>
+            </div>
+        </div>
+        <div class="footer-links">
+            <div class="footer-column">
+                <h3>Company</h3>
+                <ul>
+                    <li><a href="#">About us</a></li>
+                    <li><a href="#">Our offerings</a></li>
+                    <li><a href="#">Newsroom</a></li>
+                    <li><a href="#">Investors</a></li>
+                    <li><a href="#">Blog</a></li>
+                    <li><a href="#">Careers</a></li>
+                    <li><a href="#">AI</a></li>
+                    <li><a href="#">Gift cards</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h3>Products</h3>
+                <ul>
+                    <li><a href="#">Ride</a></li>
+                    <li><a href="#">Drive</a></li>
+                    <li><a href="#">Deliver</a></li>
+                    <li><a href="#">Eat</a></li>
+                    <li><a href="#">Uber for Business</a></li>
+                    <li><a href="#">Uber Freight</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h3>Global citizenship</h3>
+                <ul>
+                    <li><a href="#">Safety</a></li>
+                    <li><a href="#">Diversity & Inclusion</a></li>
+                    <li><a href="#">Sustainability</a></li>
+                </ul>
+            </div>
+            <div class="footer-column">
+                <h3>Travel</h3>
+                <ul>
+                    <li><a href="#">Airports</a></li>
+                    <li><a href="#">Cities</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 Uber Technologies Inc.</p>
+            <div class="social-links">
+                <a href="#" class="social-icon">F</a>
+                <a href="#" class="social-icon">T</a>
+                <a href="#" class="social-icon">L</a>
+                <a href="#" class="social-icon">I</a>
+            </div>
+            <div class="app-store-links">
+                <a href="#"><img
+                        src="https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,w_135,h_40/v1690810558/assets/e2/4f1914-1e23-4896-ad77-22e88c37c2f9/original/Rider-App-Icon_iOS.svg"
+                        alt="App Store"></a>
+                <a href="#"><img
+                        src="https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,w_135,h_40/v1690810802/assets/48/0eb066-2389-442c-b0f7-1cdcaa68a649/original/Driver-App-Icon_iOS.svg"
+                        alt="Google Play"></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav">
+        <a href="index.html" class="active">
+            <span class="nav-icon">🏠</span>
+            <span>Home</span>
+        </a>
+        <a href="#" onclick="document.getElementById('pickup-location').focus()">
+            <span class="nav-icon">🚗</span>
+            <span>Ride</span>
+        </a>
+        <a href="login.html">
+            <span class="nav-icon">👤</span>
+            <span>Account</span>
+        </a>
+    </nav>
+
+    <!-- Location autocomplete -->
+    <script src="location-autocomplete.js"></script>
+
+    <script>
+        // Google Maps autocomplete variables
+        let autocompletePickup;
+        let autocompleteDropoff;
+        let isInitialized = false;
+
+        // Global function for Google Maps API callback
+        window.setupGoogleMapsAutocomplete = function () {
+            console.log('setupGoogleMapsAutocomplete called');
+
+            if (isInitialized) {
+                console.log('Autocomplete already initialized');
+                return;
+            }
+
+            // Check if Google Maps API is available
+            if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
+                console.error('Google Maps Places API not available');
+                return;
+            }
+
+            try {
+                setupGoogleMapsAutocompleteWidgets();
+                isInitialized = true;
+                console.log('Google Maps autocomplete initialized successfully');
+            } catch (error) {
+                console.error('Error initializing Google Maps autocomplete:', error);
+            }
+        };
+
+        function setupGoogleMapsAutocompleteWidgets() {
+            const pickupInput = document.getElementById('pickup-location');
+            const dropoffInput = document.getElementById('dropoff-location');
+
+            if (!pickupInput || !dropoffInput) {
+                console.error('Pickup or dropoff input elements not found');
+                return;
+            }
+
+            // Add loading state
+            const pickupGroup = pickupInput.closest('.input-group');
+            const dropoffGroup = dropoffInput.closest('.input-group');
+
+            // Create autocomplete options for India
+            const autocompleteOptions = {
+                componentRestrictions: { country: 'in' },
+                types: ['establishment', 'geocode'],
+                fields: ['formatted_address', 'name', 'place_id', 'geometry']
+            };
+
+            try {
+                // Use legacy Autocomplete for now (works with existing Places API)
+                console.log('Using legacy Autocomplete (compatible with existing Places API)');
+
+                autocompletePickup = new google.maps.places.Autocomplete(pickupInput, autocompleteOptions);
+                autocompleteDropoff = new google.maps.places.Autocomplete(dropoffInput, autocompleteOptions);
+
+                // Enhanced interaction effects
+                pickupInput.addEventListener('focus', function () {
+                    pickupGroup.style.transform = 'translateY(-2px)';
+                    pickupGroup.style.boxShadow = '0 8px 25px rgba(33, 150, 243, 0.15)';
+                });
+
+                pickupInput.addEventListener('blur', function () {
+                    if (!pickupInput.value) {
+                        pickupGroup.style.transform = 'translateY(0)';
+                        pickupGroup.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.05)';
+                    }
+                });
+
+                dropoffInput.addEventListener('focus', function () {
+                    dropoffGroup.style.transform = 'translateY(-2px)';
+                    dropoffGroup.style.boxShadow = '0 8px 25px rgba(33, 150, 243, 0.15)';
+                });
+
+                dropoffInput.addEventListener('blur', function () {
+                    if (!dropoffInput.value) {
+                        dropoffGroup.style.transform = 'translateY(0)';
+                        dropoffGroup.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.05)';
+                    }
+                });
+
+                // Enhanced place change listeners with animations
+                autocompletePickup.addListener('place_changed', function () {
+                    const place = autocompletePickup.getPlace();
+                    if (place.formatted_address) {
+                        pickupInput.value = place.formatted_address;
+
+                        // Success animation
+                        pickupGroup.style.borderColor = '#4caf50';
+                        pickupGroup.style.backgroundColor = '#f1f8e9';
+                        setTimeout(() => {
+                            pickupGroup.style.borderColor = '#e0e0e0';
+                            pickupGroup.style.backgroundColor = 'linear-gradient(145deg, #ffffff, #f8f9fa)';
+                        }, 1500);
+
+                        console.log('Pickup location selected:', place.formatted_address);
+                    }
+                });
+
+                autocompleteDropoff.addListener('place_changed', function () {
+                    const place = autocompleteDropoff.getPlace();
+                    if (place.formatted_address) {
+                        dropoffInput.value = place.formatted_address;
+
+                        // Success animation
+                        dropoffGroup.style.borderColor = '#4caf50';
+                        dropoffGroup.style.backgroundColor = '#f1f8e9';
+                        setTimeout(() => {
+                            dropoffGroup.style.borderColor = '#e0e0e0';
+                            dropoffGroup.style.backgroundColor = 'linear-gradient(145deg, #ffffff, #f8f9fa)';
+                        }, 1500);
+
+                        console.log('Dropoff location selected:', place.formatted_address);
+                    }
+                });
+
+                // Add typing indicators
+                pickupInput.addEventListener('input', function () {
+                    if (pickupInput.value.length > 0) {
+                        pickupGroup.classList.add('loading');
+                        setTimeout(() => {
+                            pickupGroup.classList.remove('loading');
+                        }, 1000);
+                    }
+                });
+
+                dropoffInput.addEventListener('input', function () {
+                    if (dropoffInput.value.length > 0) {
+                        dropoffGroup.classList.add('loading');
+                        setTimeout(() => {
+                            dropoffGroup.classList.remove('loading');
+                        }, 1000);
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error setting up autocomplete:', error);
+                return;
+            }
+
+            // Hide the custom suggestion containers since we're using Google's autocomplete
+            const pickupSuggestions = document.getElementById('pickup-suggestions');
+            const dropoffSuggestions = document.getElementById('dropoff-suggestions');
+            if (pickupSuggestions) pickupSuggestions.style.display = 'none';
+            if (dropoffSuggestions) dropoffSuggestions.style.display = 'none';
+
+            // Set up button handlers if the function is available
+            if (window.setupButtonHandlers) {
+                window.setupButtonHandlers(pickupInput, dropoffInput);
+            }
+
+            console.log('Google Maps autocomplete widgets initialized with enhanced UI');
+        }
+
+        function initGoogleMaps() {
+            console.log('Google Maps API loaded, initializing autocomplete...');
+            console.log('Current URL:', window.location.href);
+            console.log('Google Maps available:', typeof google !== 'undefined');
+            console.log('Google Maps Places available:', typeof google !== 'undefined' && google.maps && google.maps.places);
+
+            // Mark Google Maps as loaded to prevent local autocomplete from running
+            window.googleMapsLoaded = true;
+            window.localAutocompleteDisabled = true;
+
+            // Call the autocomplete setup directly
+            if (window.setupGoogleMapsAutocomplete) {
+                window.setupGoogleMapsAutocomplete();
+            } else {
+                console.error('setupGoogleMapsAutocomplete function not found');
+            }
+        }
+
+        // Handle Google Maps API authentication failures
+        window.gm_authFailure = function () {
+            console.error('Google Maps API authentication failed - check API key and restrictions');
+            handleGoogleMapsError();
+        };
+
+        // Also catch the "can't load correctly" error
+        window.addEventListener('error', function (e) {
+            if (e.message && e.message.includes('Google')) {
+                handleGoogleMapsError();
+            }
+        });
+
+        function handleGoogleMapsError() {
+            // Enable local autocomplete as fallback
+            window.googleMapsLoaded = false;
+            window.localAutocompleteDisabled = false;
+
+            // Hide ALL Google Maps error messages and dialogs
+            setTimeout(function () {
+                const selectors = [
+                    '.gm-err-container',
+                    '.dismissible-message',
+                    '.gm-style-cc',
+                    '[role="dialog"]',
+                    '.gm-ui-hover-effect'
+                ];
+                selectors.forEach(selector => {
+                    document.querySelectorAll(selector).forEach(el => {
+                        if (el.textContent && el.textContent.includes('Google')) {
+                            el.style.display = 'none !important';
+                            el.remove();
+                        }
+                    });
+                });
+
+                // Also hide the alert-style dialog
+                const allDivs = document.querySelectorAll('div');
+                allDivs.forEach(div => {
+                    if (div.textContent && div.textContent.includes("can't load Google Maps")) {
+                        div.style.display = 'none';
+                        if (div.parentElement) div.parentElement.style.display = 'none';
+                    }
+                });
+            }, 100);
+
+            // Re-enable the input fields for local autocomplete
+            const pickupInput = document.getElementById('pickup-location');
+            const dropoffInput = document.getElementById('dropoff-location');
+            if (pickupInput) {
+                pickupInput.placeholder = 'Enter pickup location';
+                pickupInput.disabled = false;
+            }
+            if (dropoffInput) {
+                dropoffInput.placeholder = 'Enter destination';
+                dropoffInput.disabled = false;
+            }
+
+            // Re-initialize local autocomplete if available
+            if (window.initLocalAutocomplete) {
+                window.initLocalAutocomplete();
+            }
+
+            console.log('Falling back to local autocomplete');
+        }
+    </script>
+    <!-- Google Maps API - Billing enabled -->
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFYLT473lC55zLeTyL0Njnh0xOWJIIQ_s&libraries=places&loading=async&callback=initGoogleMaps"></script>
+    <script>
+        // User Authentication Management
+        class AuthManager {
+            constructor() {
+                this.user = null;
+                this.isAuthenticated = false;
+                this.activeTrip = null;
+                this.init();
+            }
+
+            async init() {
+                await this.checkAuthStatus();
+                this.setupEventListeners();
+                if (this.isAuthenticated) {
+                    await this.checkActiveTrip();
+                }
+            }
+
+            async checkAuthStatus() {
+                try {
+                    const response = await fetch('/api/auth/status');
+                    const data = await response.json();
+
+                    if (data.isAuthenticated) {
+                        this.setUser(data.user);
+                    } else {
+                        this.clearUser();
+                    }
+                } catch (error) {
+                    console.error('Error checking auth status:', error);
+                    this.clearUser();
+                }
+            }
+
+            async checkActiveTrip() {
+                try {
+                    const response = await fetch('/api/trips/active', {
+                        credentials: 'include'
+                    });
+                    const data = await response.json();
+
+                    if (data.hasActiveTrip) {
+                        this.activeTrip = data.trip;
+                        this.showActiveTripPrompt();
+                    }
+                } catch (error) {
+                    console.error('Error checking active trip:', error);
+                }
+            }
+
+            showActiveTripPrompt() {
+                // Remove any existing prompt
+                const existingPrompt = document.getElementById('active-trip-prompt');
+                if (existingPrompt) {
+                    existingPrompt.remove();
+                }
+
+                // Create the prompt element
+                const prompt = document.createElement('div');
+                prompt.id = 'active-trip-prompt';
+                prompt.className = 'active-trip-prompt';
+                prompt.innerHTML = `
+                    <div class="prompt-content">
+                        <div class="prompt-header">
+                            <h3>Active Trip</h3>
+                            <button class="prompt-close" onclick="authManager.dismissPrompt()">×</button>
+                        </div>
+                        <div class="prompt-body">
+                            <p>You have an active trip from <strong>${this.activeTrip.start_location}</strong> to <strong>${this.activeTrip.end_location}</strong></p>
+                            <div class="prompt-actions">
+                            <button class="cancel-trip-btn" onclick="authManager.confirmCancelTrip()">
+                                Cancel Trip
+                            </button>
+                                <button class="view-trip-btn" onclick="authManager.viewTrip()">
+                                    View Details
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(prompt);
+
+                // Animate in
+                setTimeout(() => {
+                    prompt.classList.add('show');
+                }, 100);
+            }
+
+            dismissPrompt() {
+                const prompt = document.getElementById('active-trip-prompt');
+                if (prompt) {
+                    prompt.classList.remove('show');
+                    setTimeout(() => {
+                        prompt.remove();
+                    }, 300);
+                }
+            }
+
+            viewTrip() {
+                // Navigate to driver confirmation page with trip details
+                const startLocation = encodeURIComponent(this.activeTrip.start_location);
+                const endLocation = encodeURIComponent(this.activeTrip.end_location);
+                window.location.href = `driver-confirmation.html?start=${startLocation}&end=${endLocation}`;
+            }
+
+            async confirmCancelTrip() {
+                const confirmed = confirm('Are you sure you want to cancel your active trip? This action cannot be undone.');
+
+                if (confirmed) {
+                    await this.cancelActiveTrip();
+                }
+            }
+
+            async cancelActiveTrip() {
+                try {
+                    const response = await fetch(`/api/trips/${this.activeTrip.id}/cancel`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include'
+                    });
+
+                    if (response.ok) {
+                        this.showNotification('Trip cancelled successfully!', 'success');
+                        this.dismissPrompt();
+                        this.activeTrip = null;
+                    } else {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Failed to cancel trip');
+                    }
+                } catch (error) {
+                    console.error('Error cancelling trip:', error);
+                    this.showNotification(error.message || 'Error cancelling trip. Please try again.', 'error');
+                }
+            }
+
+            setUser(user) {
+                this.user = user;
+                this.isAuthenticated = true;
+                this.updateUI();
+                console.log('User logged in:', user.name);
+            }
+
+            clearUser() {
+                this.user = null;
+                this.isAuthenticated = false;
+                this.updateUI();
+            }
+
+            updateUI() {
+                const authButtons = document.getElementById('auth-buttons');
+                const userMenu = document.getElementById('user-menu');
+                const userName = document.getElementById('user-name');
+                const userInitial = document.getElementById('user-initial');
+
+                if (this.isAuthenticated && this.user) {
+                    // Hide login/signup buttons
+                    authButtons.style.display = 'none';
+
+                    // Show user menu
+                    userMenu.style.display = 'flex';
+
+                    // Update user info
+                    userName.textContent = this.user.name;
+                    userInitial.textContent = this.user.name.charAt(0).toUpperCase();
+
+                    // Update page elements for logged-in state
+                    this.updateLoggedInElements();
+                } else {
+                    // Show login/signup buttons
+                    authButtons.style.display = 'flex';
+
+                    // Hide user menu
+                    userMenu.style.display = 'none';
+                }
+            }
+
+            updateLoggedInElements() {
+                // Update the "Log in to see your recent activity" link
+                const loginActivityLink = document.querySelector('.login-activity-link');
+                if (loginActivityLink) {
+                    loginActivityLink.textContent = `Welcome back, ${this.user.name}! View your recent activity`;
+                    loginActivityLink.style.color = '#2196f3';
+                    loginActivityLink.style.fontWeight = '500';
+                }
+            }
+
+            setupEventListeners() {
+                // User menu toggle
+                const userInfo = document.querySelector('.user-info');
+                const userMenu = document.getElementById('user-menu');
+
+                if (userInfo) {
+                    userInfo.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        userMenu.classList.toggle('open');
+                    });
+                }
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', () => {
+                    if (userMenu) {
+                        userMenu.classList.remove('open');
+                    }
+                });
+
+                // Logout functionality
+                const logoutBtn = document.querySelector('.logout-btn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        await this.logout();
+                    });
+                }
+
+                // Dropdown item animations
+                const dropdownItems = document.querySelectorAll('.dropdown-item');
+                dropdownItems.forEach(item => {
+                    item.addEventListener('mouseenter', () => {
+                        item.style.transform = 'translateX(4px)';
+                    });
+
+                    item.addEventListener('mouseleave', () => {
+                        item.style.transform = 'translateX(0)';
+                    });
+                });
+            }
+
+            async logout() {
+                try {
+                    const response = await fetch('/api/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        this.clearUser();
+
+                        // Show logout success message
+                        this.showNotification('Successfully logged out!', 'success');
+
+                        // Optional: redirect to home page or refresh
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        throw new Error('Logout failed');
+                    }
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    this.showNotification('Error logging out. Please try again.', 'error');
+                }
+            }
+
+            showNotification(message, type = 'info') {
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.className = `notification notification-${type}`;
+                notification.textContent = message;
+
+                // Add styles
+                Object.assign(notification.style, {
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontWeight: '500',
+                    zIndex: '10000',
+                    transform: 'translateX(400px)',
+                    transition: 'transform 0.3s ease',
+                    backgroundColor: type === 'success' ? '#4CAF50' :
+                        type === 'error' ? '#f44336' : '#2196f3'
+                });
+
+                document.body.appendChild(notification);
+
+                // Animate in
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(0)';
+                }, 100);
+
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(400px)';
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 300);
+                }, 3000);
+            }
+        }
+
+        // Initialize authentication manager
+        let authManager;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            authManager = new AuthManager();
+
+            // Initialize datetime picker
+            setupDateTimePickerInline();
+
+            // Initialize action buttons
+            setupActionButtonsInline();
+        });
+
+        // DateTime Picker functionality inline
+        function setupDateTimePickerInline() {
+            console.log('=== Setting up DateTime Picker INLINE ===');
+
+            const dateTimeBtn = document.getElementById('datetime-picker');
+            const dateTimeDropdown = document.getElementById('datetime-dropdown');
+            const confirmBtn = document.querySelector('.confirm-schedule-btn');
+            const dateInput = document.getElementById('ride-date');
+            const timeInput = document.getElementById('ride-time');
+            const dateTimeLabel = document.querySelector('.datetime-label');
+            const dateTimeValue = document.querySelector('.datetime-value');
+
+            console.log('DateTime button:', dateTimeBtn);
+            console.log('DateTime dropdown:', dateTimeDropdown);
+
+            if (!dateTimeBtn || !dateTimeDropdown) {
+                console.error('DateTime elements not found');
+                return;
+            }
+
+            // Set default date and time
+            const now = new Date();
+            const defaultTime = new Date(now.getTime() + 60 * 60 * 1000);
+
+            if (dateInput) {
+                dateInput.value = now.toISOString().split('T')[0];
+            }
+            if (timeInput) {
+                timeInput.value = String(defaultTime.getHours()).padStart(2, '0') + ':' + String(defaultTime.getMinutes()).padStart(2, '0');
+            }
+
+            // Click handler for datetime button
+            dateTimeBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('DateTime button clicked INLINE!');
+
+                const isActive = dateTimeDropdown.classList.contains('active');
+
+                if (isActive) {
+                    dateTimeDropdown.classList.remove('active');
+                    dateTimeDropdown.style.display = 'none';
+                } else {
+                    dateTimeDropdown.classList.add('active');
+                    dateTimeDropdown.style.display = 'block';
+                    dateTimeDropdown.style.visibility = 'visible';
+                    dateTimeDropdown.style.opacity = '1';
+                }
+
+                console.log('Dropdown now active:', dateTimeDropdown.classList.contains('active'));
+            });
+
+            // Close when clicking outside
+            document.addEventListener('click', function (e) {
+                if (!dateTimeBtn.contains(e.target) && !dateTimeDropdown.contains(e.target)) {
+                    dateTimeDropdown.classList.remove('active');
+                    dateTimeDropdown.style.display = 'none';
+                }
+            });
+
+            // Confirm button handler
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', function () {
+                    const selectedDate = dateInput.value;
+                    const selectedTime = timeInput.value;
+
+                    if (!selectedDate || !selectedTime) {
+                        alert('Please select both date and time');
+                        return;
+                    }
+
+                    const dateObj = new Date(selectedDate + 'T' + selectedTime);
+                    const now = new Date();
+
+                    if (dateObj <= now) {
+                        alert('Please select a future date and time');
+                        return;
+                    }
+
+                    const formatOptions = {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit'
+                    };
+
+                    const formattedDateTime = dateObj.toLocaleDateString('en-US', formatOptions);
+
+                    if (dateTimeLabel) dateTimeLabel.textContent = 'Scheduled';
+                    if (dateTimeValue) dateTimeValue.textContent = formattedDateTime;
+
+                    dateTimeDropdown.classList.remove('active');
+                    dateTimeDropdown.style.display = 'none';
+
+                    showNotification('Trip scheduled successfully!', 'success');
+                });
+            }
+
+            console.log('DateTime picker setup complete INLINE');
+        }
+
+        // Action Buttons functionality inline
+        function setupActionButtonsInline() {
+            console.log('=== Setting up Action Buttons INLINE ===');
+
+            const headingToBtn = document.querySelector('.action-btn-driver');
+            const bePassengerBtn = document.querySelector('.action-btn-passenger');
+            const pickupInput = document.getElementById('pickup-location');
+            const dropoffInput = document.getElementById('dropoff-location');
+
+            console.log('Heading To button:', headingToBtn);
+            console.log('Be Passenger button:', bePassengerBtn);
+            console.log('Pickup input:', pickupInput);
+            console.log('Dropoff input:', dropoffInput);
+
+            if (headingToBtn) {
+                headingToBtn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    console.log('Heading To button clicked!');
+
+                    const pickup = pickupInput ? pickupInput.value.trim() : '';
+                    const dropoff = dropoffInput ? dropoffInput.value.trim() : '';
+
+                    console.log('Pickup value:', pickup);
+                    console.log('Dropoff value:', dropoff);
+
+                    if (!pickup || !dropoff) {
+                        alert('Please enter both initial and final locations first!');
+                        return;
+                    }
+
+                    // Store locations for the confirmation page
+                    localStorage.setItem('startLocation', pickup);
+                    localStorage.setItem('endLocation', dropoff);
+
+                    console.log('Stored locations, redirecting...');
+
+                    // Show success message
+                    showNotification(`Setting up your ride as driver from ${pickup} to ${dropoff}`, 'success');
+
+                    // Redirect to driver confirmation page
+                    setTimeout(() => {
+                        const redirectUrl = `driver-confirmation.html?start=${encodeURIComponent(pickup)}&end=${encodeURIComponent(dropoff)}`;
+                        console.log('Redirecting to:', redirectUrl);
+                        window.location.href = redirectUrl;
+                    }, 1500);
+                });
+            } else {
+                console.error('Heading To button not found!');
+            }
+
+            if (bePassengerBtn) {
+                bePassengerBtn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    console.log('Be Passenger button clicked!');
+
+                    const pickup = pickupInput ? pickupInput.value.trim() : '';
+                    const dropoff = dropoffInput ? dropoffInput.value.trim() : '';
+
+                    console.log('Pickup value:', pickup);
+                    console.log('Dropoff value:', dropoff);
+
+                    if (!pickup || !dropoff) {
+                        alert('Please enter both initial and final locations first!');
+                        return;
+                    }
+
+                    // Store locations for the passenger confirmation page
+                    localStorage.setItem('startLocation', pickup);
+                    localStorage.setItem('endLocation', dropoff);
+
+                    console.log('Stored locations, redirecting to passenger confirmation...');
+
+                    // Show success message
+                    showNotification(`Looking for rides from ${pickup} to ${dropoff}`, 'success');
+
+                    // Redirect to passenger confirmation page
+                    setTimeout(() => {
+                        const redirectUrl = `passenger-confirmation.html?start=${encodeURIComponent(pickup)}&end=${encodeURIComponent(dropoff)}`;
+                        console.log('Redirecting to:', redirectUrl);
+                        window.location.href = redirectUrl;
+                    }, 1500);
+                });
+            } else {
+                console.error('Be Passenger button not found!');
+            }
+
+            console.log('Action buttons setup complete INLINE');
+        }
+
+        // Global notification function for action buttons
+        function showNotification(message, type = 'info') {
+            // Remove existing notifications
+            const existingNotifications = document.querySelectorAll('.action-notification');
+            existingNotifications.forEach(notification => notification.remove());
+
+            // Create new notification
+            const notification = document.createElement('div');
+            notification.className = `action-notification action-notification-${type}`;
+            notification.textContent = message;
+
+            // Style the notification
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 16px 20px;
+                border-radius: 12px;
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                max-width: 350px;
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+                font-family: var(--font-family-primary, 'Segoe UI', sans-serif);
+                font-size: 14px;
+                line-height: 1.4;
+            `;
+
+            // Set background color based on type
+            switch (type) {
+                case 'success':
+                    notification.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                    break;
+                case 'warning':
+                    notification.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+                    break;
+                case 'error':
+                    notification.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                    break;
+                case 'info':
+                default:
+                    notification.style.background = 'linear-gradient(135deg, #3b82f6, #2563eb)';
+                    break;
+            }
+
+            document.body.appendChild(notification);
+
+            // Animate in
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+
+            // Remove after 4 seconds
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => notification.remove(), 300);
+            }, 4000);
+        }
+    </script>
+
+    <style>
+        /* Active Trip Prompt Styles */
+        .active-trip-prompt {
+            position: fixed;
+            bottom: 100px;
+            /* Above mobile nav */
+            right: 20px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 9000;
+            /* Below mobile nav */
+            max-width: 380px;
+            width: calc(100% - 40px);
+            transform: translateY(150%);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            pointer-events: none;
+            /* Don't block when hidden */
+        }
+
+        .active-trip-prompt.show {
+            transform: translateY(0);
+            pointer-events: auto;
+            /* Enable when visible */
+        }
+
+        .prompt-content {
+            padding: 24px;
+            color: #ffffff;
+        }
+
+        .prompt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .prompt-header h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }
+
+        .prompt-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        .prompt-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .prompt-body p {
+            margin: 0 0 20px 0;
+            font-size: 15px;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .prompt-body strong {
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .prompt-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .cancel-trip-btn {
+            flex: 1;
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .cancel-trip-btn:hover {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .cancel-trip-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-icon {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .btn-text {
+            font-weight: 600;
+        }
+
+        .view-trip-btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .view-trip-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Responsive design for active trip prompt */
+        @media (max-width: 768px) {
+            .active-trip-prompt {
+                bottom: 20px;
+                right: 20px;
+                left: 20px;
+                max-width: none;
+            }
+
+            .prompt-content {
+                padding: 20px;
+            }
+
+            .prompt-header h3 {
+                font-size: 18px;
+            }
+
+            .prompt-body p {
+                font-size: 14px;
+            }
+
+            .prompt-actions {
+                flex-direction: column;
+            }
+
+            .cancel-trip-btn,
+            .view-trip-btn {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .active-trip-prompt {
+                bottom: 16px;
+                right: 16px;
+                left: 16px;
+            }
+
+            .prompt-content {
+                padding: 16px;
+            }
+
+            .prompt-header h3 {
+                font-size: 16px;
+            }
+
+            .prompt-body p {
+                font-size: 13px;
+                margin-bottom: 16px;
+            }
+
+            .cancel-trip-btn,
+            .view-trip-btn {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+        }
+
+        /* Animation for prompt appearance */
+        @keyframes promptSlideIn {
+            from {
+                transform: translateY(150%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .active-trip-prompt.show {
+            animation: promptSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+    </style>
+
+    <!-- Service Worker Registration for PWA -->
+    <script>
+        // Register service worker for PWA functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((registration) => {
+                        console.log('ServiceWorker registered successfully:', registration.scope);
+
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New content is available, show refresh prompt
+                                    if (confirm('New version available! Reload to update?')) {
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.error('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+
+        // Handle PWA install prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+
+            // Show install button or banner (optional)
+            console.log('PWA install prompt available');
+        });
+
+        // Track successful installation
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA installed successfully');
+            deferredPrompt = null;
+        });
+
+        // Scroll to Top Button functionality
+        (function () {
+            // Create scroll to top button
+            const scrollBtn = document.createElement('button');
+            scrollBtn.className = 'scroll-to-top';
+            scrollBtn.innerHTML = '↑';
+            scrollBtn.setAttribute('aria-label', 'Scroll to top');
+            document.body.appendChild(scrollBtn);
+
+            // Show/hide button based on scroll position
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 300) {
+                    scrollBtn.classList.add('show');
+                } else {
+                    scrollBtn.classList.remove('show');
+                }
+            });
+
+            // Scroll to top when clicked
+            scrollBtn.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        })();
+
+        // Improved alert replacement with toast
+        window.showToast = function (message, duration = 3000) {
+            const existingToasts = document.querySelectorAll('.toast');
+            existingToasts.forEach(t => t.remove());
+
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        };
+
+        // Add loading state to buttons on click
+        document.querySelectorAll('.action-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (!this.classList.contains('btn-loading')) {
+                    this.classList.add('btn-loading');
+                    setTimeout(() => this.classList.remove('btn-loading'), 3000);
+                }
+            });
+        });
+
+        console.log('RideMate UX enhancements loaded');
+    </script>
+</body>
+
+</html>
