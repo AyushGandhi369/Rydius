@@ -6,6 +6,7 @@ const session = require('express-session');
 const { Resend } = require('resend');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
+const { calculateCostSharing, DEFAULT_FUEL_PRICES } = require('./cost-sharing');
 
 const app = express();
 const server = createServer(app);
@@ -132,6 +133,16 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_trip ON matches(trip_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_request ON matches(ride_request_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status)`);
+
+    // Create fuel_config table (admin-editable fuel prices)
+    db.run(`CREATE TABLE IF NOT EXISTS fuel_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_type TEXT NOT NULL,
+        fuel_type TEXT NOT NULL,
+        cost_per_km REAL NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(vehicle_type, fuel_type)
+    )`);
 });
 
 // Initialize Resend with your API key
@@ -1149,7 +1160,90 @@ app.get('/api/matches/active', requireAuth, (req, res) => {
     });
 });
 
+// ============= COST SHARING ENDPOINTS =============
+
+// Helper: load fuel prices from DB (falls back to defaults)
+function loadFuelPrices(callback) {
+    db.all(`SELECT vehicle_type, fuel_type, cost_per_km FROM fuel_config`, [], (err, rows) => {
+        if (err || !rows || rows.length === 0) {
+            return callback(DEFAULT_FUEL_PRICES);
+        }
+        // Build prices object from DB rows
+        const prices = { '2W': {}, '4W': {} };
+        rows.forEach(r => {
+            if (prices[r.vehicle_type]) {
+                prices[r.vehicle_type][r.fuel_type] = r.cost_per_km;
+            }
+        });
+        // Merge with defaults (DB overrides defaults)
+        const merged = {
+            '2W': { ...DEFAULT_FUEL_PRICES['2W'], ...prices['2W'] },
+            '4W': { ...DEFAULT_FUEL_PRICES['4W'], ...prices['4W'] }
+        };
+        callback(merged);
+    });
+}
+
+// POST /api/cost-sharing/calculate — public, no auth needed
+app.post('/api/cost-sharing/calculate', (req, res) => {
+    const { distanceInKm, vehicleType, fuelType, numberOfPassengers } = req.body;
+
+    if (!distanceInKm || distanceInKm <= 0) {
+        return res.status(400).json({ message: 'distanceInKm is required and must be positive' });
+    }
+
+    loadFuelPrices((fuelPrices) => {
+        try {
+            const result = calculateCostSharing({
+                distanceInKm: parseFloat(distanceInKm),
+                vehicleType: vehicleType || '4W',
+                fuelType: fuelType || 'petrol',
+                numberOfPassengers: parseInt(numberOfPassengers) || 1,
+                fuelPrices
+            });
+            res.json(result);
+        } catch (error) {
+            res.status(400).json({ message: error.message });
+        }
+    });
+});
+
+// GET /api/cost-sharing/fuel-prices — returns current config
+app.get('/api/cost-sharing/fuel-prices', (req, res) => {
+    loadFuelPrices((prices) => {
+        res.json(prices);
+    });
+});
+
+// PUT /api/cost-sharing/fuel-prices — admin update
+app.put('/api/cost-sharing/fuel-prices', requireAuth, (req, res) => {
+    const { vehicleType, fuelType, costPerKm } = req.body;
+
+    if (!vehicleType || !fuelType || !costPerKm) {
+        return res.status(400).json({ message: 'vehicleType, fuelType, and costPerKm are required' });
+    }
+    if (!['2W', '4W'].includes(vehicleType.toUpperCase())) {
+        return res.status(400).json({ message: 'vehicleType must be 2W or 4W' });
+    }
+    if (!['petrol', 'diesel', 'cng', 'ev'].includes(fuelType.toLowerCase())) {
+        return res.status(400).json({ message: 'fuelType must be petrol, diesel, cng, or ev' });
+    }
+
+    const sql = `INSERT INTO fuel_config (vehicle_type, fuel_type, cost_per_km, updated_at)
+                 VALUES (?, ?, ?, datetime('now'))
+                 ON CONFLICT(vehicle_type, fuel_type)
+                 DO UPDATE SET cost_per_km = ?, updated_at = datetime('now')`;
+
+    db.run(sql, [vehicleType.toUpperCase(), fuelType.toLowerCase(), parseFloat(costPerKm), parseFloat(costPerKm)], function (err) {
+        if (err) {
+            return res.status(500).json({ message: 'Error updating fuel price' });
+        }
+        res.json({ message: 'Fuel price updated successfully', vehicleType, fuelType, costPerKm });
+    });
+});
+
 server.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
     console.log(`WebSocket server ready for real-time notifications`);
+    console.log(`Cost sharing API ready at /api/cost-sharing/calculate`);
 });

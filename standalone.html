@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RideMate - Book Your Ride</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+            max-width: 450px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .logo {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 18px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #667eea;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .suggestion-item {
+            padding: 14px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+        }
+
+        .suggestion-item:hover {
+            background: linear-gradient(90deg, #f0f4ff 0%, #fff 100%);
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 16px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-driver {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-driver:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-passenger {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-passenger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(17, 153, 142, 0.4);
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+        }
+
+        .login-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .login-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">🚗 RideMate</div>
+
+        <div class="input-group">
+            <input type="text" id="pickup" placeholder="📍 Enter pickup location" autocomplete="off">
+            <div class="suggestions" id="pickup-suggestions"></div>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="dropoff" placeholder="🏁 Enter dropoff location" autocomplete="off">
+            <div class="suggestions" id="dropoff-suggestions"></div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-driver" id="driver-btn">🚙 Heading to</button>
+            <button class="btn btn-passenger" id="passenger-btn">🙋 Be Passenger</button>
+        </div>
+
+        <div class="status" id="status">Ready - Enter locations above</div>
+
+        <a href="login.html" class="login-link">Log in to see your activity</a>
+    </div>
+
+    <script>
+        // ========================================
+        // LOCATIONS DATABASE
+        // ========================================
+        var LOCATIONS = [
+            "Satellite, Ahmedabad",
+            "Vastrapur, Ahmedabad",
+            "Prahladnagar, Ahmedabad",
+            "Navrangpura, Ahmedabad",
+            "CG Road, Ahmedabad",
+            "SG Highway, Ahmedabad",
+            "Thaltej, Ahmedabad",
+            "Bodakdev, Ahmedabad",
+            "Bopal, Ahmedabad",
+            "Maninagar, Ahmedabad",
+            "Chandkheda, Ahmedabad",
+            "Gota, Ahmedabad",
+            "Naranpura, Ahmedabad",
+            "Gurukul, Ahmedabad",
+            "Shivranjani, Ahmedabad",
+            "IIM Ahmedabad",
+            "Ahmedabad Railway Station",
+            "Ahmedabad Airport",
+            "Gandhinagar, Gujarat",
+            "Vadodara, Gujarat"
+        ];
+
+        // ========================================
+        // STATUS UPDATER
+        // ========================================
+        function updateStatus(msg) {
+            document.getElementById('status').textContent = msg;
+            console.log('Status:', msg);
+        }
+
+        // ========================================
+        // AUTOCOMPLETE SETUP
+        // ========================================
+        function setupAutocomplete(inputId, suggestionsId) {
+            var input = document.getElementById(inputId);
+            var suggestions = document.getElementById(suggestionsId);
+
+            input.addEventListener('input', function () {
+                var query = this.value.toLowerCase().trim();
+
+                if (query.length < 1) {
+                    suggestions.style.display = 'none';
+                    return;
+                }
+
+                var matches = LOCATIONS.filter(function (loc) {
+                    return loc.toLowerCase().indexOf(query) !== -1;
+                }).slice(0, 5);
+
+                if (matches.length === 0) {
+                    suggestions.innerHTML = '<div class="suggestion-item" style="color:#888;">No results found</div>';
+                } else {
+                    suggestions.innerHTML = '';
+                    matches.forEach(function (loc) {
+                        var div = document.createElement('div');
+                        div.className = 'suggestion-item';
+                        div.textContent = '📍 ' + loc;
+                        div.addEventListener('mousedown', function (e) {
+                            e.preventDefault();
+                            input.value = loc;
+                            suggestions.style.display = 'none';
+                            updateStatus('Selected: ' + loc);
+                        });
+                        suggestions.appendChild(div);
+                    });
+                }
+                suggestions.style.display = 'block';
+                updateStatus('Showing ' + matches.length + ' suggestions');
+            });
+
+            input.addEventListener('focus', function () {
+                if (this.value.length >= 1) {
+                    this.dispatchEvent(new Event('input'));
+                }
+            });
+
+            input.addEventListener('blur', function () {
+                setTimeout(function () {
+                    suggestions.style.display = 'none';
+                }, 150);
+            });
+        }
+
+        // ========================================
+        // NAVIGATION
+        // ========================================
+        function navigate(type) {
+            var pickup = document.getElementById('pickup').value.trim();
+            var dropoff = document.getElementById('dropoff').value.trim();
+
+            updateStatus('Button clicked: ' + type);
+
+            if (!pickup) {
+                alert('Please enter a pickup location!');
+                document.getElementById('pickup').focus();
+                return;
+            }
+
+            if (!dropoff) {
+                alert('Please enter a dropoff location!');
+                document.getElementById('dropoff').focus();
+                return;
+            }
+
+            // Store in localStorage
+            localStorage.setItem('startLocation', pickup);
+            localStorage.setItem('endLocation', dropoff);
+
+            // Build URL
+            var page = type === 'driver' ? 'driver-confirmation.html' : 'passenger-confirmation.html';
+            var url = page + '?start=' + encodeURIComponent(pickup) + '&end=' + encodeURIComponent(dropoff);
+
+            updateStatus('Navigating to: ' + page);
+
+            // Navigate after small delay so user sees the status
+            setTimeout(function () {
+                window.location.href = url;
+            }, 300);
+        }
+
+        // ========================================
+        // INITIALIZATION
+        // ========================================
+        document.addEventListener('DOMContentLoaded', function () {
+            updateStatus('Initializing...');
+
+            // Setup autocomplete
+            setupAutocomplete('pickup', 'pickup-suggestions');
+            setupAutocomplete('dropoff', 'dropoff-suggestions');
+
+            // Setup buttons
+            document.getElementById('driver-btn').addEventListener('click', function () {
+                navigate('driver');
+            });
+
+            document.getElementById('passenger-btn').addEventListener('click', function () {
+                navigate('passenger');
+            });
+
+            updateStatus('Ready - Enter locations above');
+        });
+    </script>
+</body>
+
+</html>

@@ -712,6 +712,158 @@
             width: 60%;
         }
 
+        /* ===== Smart Cost Sharing Card ===== */
+        .smart-cost-card {
+            background: linear-gradient(135deg, #0a1a0a 0%, #1a2f1a 100%);
+            border: 1px solid rgba(76, 175, 80, 0.25);
+            border-radius: 20px;
+            padding: 24px;
+            margin-top: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .smart-cost-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(76, 175, 80, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .cost-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .cost-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .cost-badge {
+            background: rgba(76, 175, 80, 0.15);
+            color: #4CAF50;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+            animation: badgePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes badgePulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .cost-amount {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+
+        .cost-currency {
+            font-size: 22px;
+            font-weight: 800;
+            color: #4CAF50;
+        }
+
+        .cost-value {
+            font-size: 42px;
+            font-weight: 900;
+            color: #4CAF50;
+            line-height: 1;
+            letter-spacing: -2px;
+        }
+
+        .cost-sublabel {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+            margin-bottom: 20px;
+        }
+
+        .cost-benefits {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .benefit-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .benefit-row:hover {
+            background: rgba(255, 255, 255, 0.07);
+            transform: translateX(4px);
+        }
+
+        .benefit-icon {
+            font-size: 18px;
+            width: 28px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .benefit-text {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 500;
+            line-height: 1.3;
+        }
+
+        .benefit-highlight {
+            color: #4CAF50;
+            font-weight: 700;
+        }
+
+        .cost-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            gap: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+
+        .cost-loading .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(76, 175, 80, 0.2);
+            border-top-color: #4CAF50;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         /* Responsive Design */
         @media (max-width: 1024px) {
             .confirmation-title {
@@ -769,6 +921,10 @@
             .confirmation-subtitle {
                 font-size: 16px;
             }
+
+            .cost-value {
+                font-size: 36px;
+            }
         }
     </style>
 </head>
@@ -810,19 +966,37 @@
                             <span class="route-text" id="end-location">Loading...</span>
                         </div>
                     </div>
-                    <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #333;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-size: 14px; color: rgba(255, 255, 255, 0.6); margin-bottom: 4px;">
-                                    Estimated Fare</div>
-                                <div style="font-size: 12px; color: rgba(255, 255, 255, 0.4);">₹30 per 10km</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div id="journey-price" style="font-size: 32px; font-weight: 800; color: #4CAF50;">
-                                    <span style="font-size: 20px;">₹</span><span id="price-amount">--</span>
+                    <!-- Smart Cost Sharing Card -->
+                    <div class="smart-cost-card" id="smart-cost-card">
+                        <div id="cost-loading" class="cost-loading">
+                            <div class="spinner"></div>
+                            Calculating your smart share...
+                        </div>
+                        <div id="cost-content" style="display:none;">
+                            <div class="cost-header">
+                                <div>
+                                    <div class="cost-label">Your Contribution</div>
+                                    <div class="cost-amount">
+                                        <span class="cost-currency">₹</span>
+                                        <span class="cost-value" id="cost-per-passenger">--</span>
+                                    </div>
+                                    <div class="cost-sublabel" id="cost-distance">-- km shared ride</div>
                                 </div>
-                                <div id="journey-distance"
-                                    style="font-size: 12px; color: rgba(255, 255, 255, 0.5); margin-top: 4px;">-- km
+                                <div class="cost-badge" id="cost-badge">SMART SHARE</div>
+                            </div>
+                            <div class="cost-benefits">
+                                <div class="benefit-row" id="benefit-savings">
+                                    <span class="benefit-icon">🚀</span>
+                                    <span class="benefit-text" id="savings-text">Calculating savings...</span>
+                                </div>
+                                <div class="benefit-row" id="benefit-eco">
+                                    <span class="benefit-icon">🌍</span>
+                                    <span class="benefit-text" id="eco-text">Calculating impact...</span>
+                                </div>
+                                <div class="benefit-row">
+                                    <span class="benefit-icon">💡</span>
+                                    <span class="benefit-text" id="explanation-text">Not a fare. Just shared fuel
+                                        cost.</span>
                                 </div>
                             </div>
                         </div>
@@ -945,9 +1119,9 @@
             document.getElementById('start-location').textContent = startLocation;
             document.getElementById('end-location').textContent = endLocation;
 
-            // Estimate price based on average (30km = ~₹90)
-            document.getElementById('price-amount').textContent = '--';
-            document.getElementById('journey-distance').textContent = 'Calculating...';
+            // Use estimated distance (default 20km) for cost sharing
+            const estimatedDistance = 20;
+            fetchCostSharing(estimatedDistance);
 
             setupEventHandlers();
             checkAuthAndCreateRequest();
@@ -1112,10 +1286,8 @@
                     document.getElementById('route-distance').textContent = leg.distance.text;
                     document.getElementById('route-duration').textContent = leg.duration.text;
 
-                    // Calculate and display journey price
-                    const journeyPrice = calculatePrice(routeDistance);
-                    document.getElementById('price-amount').textContent = journeyPrice;
-                    document.getElementById('journey-distance').textContent = routeDistance.toFixed(1) + ' km';
+                    // Fetch smart cost sharing from API
+                    fetchCostSharing(routeDistance);
 
                     // Add custom markers for start and end points
                     createMarker(leg.start_location, 'Your Location', 'passenger-start');
@@ -1313,11 +1485,64 @@
         }
 
         function calculatePrice(distanceInKm) {
-            // Simple pricing: ₹30 per 10km (₹3 per km)
-            const pricePerKm = 3;
-            const price = distanceInKm * pricePerKm;
+            // Fallback: simple estimate if API fails
+            return Math.round(distanceInKm * 3);
+        }
 
-            return Math.round(price);
+        // Fetch cost sharing from the API
+        async function fetchCostSharing(distanceInKm) {
+            try {
+                // Get vehicle/fuel from localStorage (set during registration) or default
+                const vehicleType = localStorage.getItem('vehicleType') || '4W';
+                const fuelType = localStorage.getItem('fuelType') || 'petrol';
+                const numPassengers = parseInt(localStorage.getItem('seatCount')) || 1;
+
+                const response = await fetch('/api/cost-sharing/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        distanceInKm: distanceInKm,
+                        vehicleType: vehicleType,
+                        fuelType: fuelType,
+                        numberOfPassengers: numPassengers
+                    })
+                });
+
+                if (!response.ok) throw new Error('API error');
+                const data = await response.json();
+
+                // Update the smart cost card
+                document.getElementById('cost-loading').style.display = 'none';
+                document.getElementById('cost-content').style.display = 'block';
+                document.getElementById('cost-per-passenger').textContent = data.costPerPassenger;
+                document.getElementById('cost-distance').textContent = data.distanceInKm + ' km shared ride';
+                document.getElementById('cost-badge').textContent = 'SAVING ₹' + data.savingsVsTaxi;
+
+                // Savings message
+                document.getElementById('savings-text').innerHTML =
+                    'You saved <span class="benefit-highlight">₹' + data.savingsVsTaxi + '</span> compared to a cab';
+
+                // Eco message  
+                document.getElementById('eco-text').innerHTML =
+                    data.co2SavedKg > 0
+                        ? 'You avoided <span class="benefit-highlight">~' + data.co2SavedKg + ' kg</span> of CO₂ today'
+                        : '🔋 Zero emission ride — planet says thanks';
+
+                // Explanation
+                document.getElementById('explanation-text').textContent = data.explanation;
+
+            } catch (error) {
+                console.error('Cost sharing API error:', error);
+                // Fallback display
+                const fallbackPrice = calculatePrice(distanceInKm);
+                document.getElementById('cost-loading').style.display = 'none';
+                document.getElementById('cost-content').style.display = 'block';
+                document.getElementById('cost-per-passenger').textContent = fallbackPrice;
+                document.getElementById('cost-distance').textContent = distanceInKm.toFixed(1) + ' km';
+                document.getElementById('cost-badge').textContent = 'SMART SHARE';
+                document.getElementById('savings-text').textContent = 'Way cheaper than a cab ride';
+                document.getElementById('eco-text').textContent = 'Less traffic, less pollution';
+            }
         }
 
         function getLocationName(fullLocation) {
@@ -2108,9 +2333,74 @@
         window.selectRealDriver = selectRealDriver;
     </script>
 
-    <!-- Google Maps API -->
+    <!-- Google Maps API - DISABLED for demo mode -->
+    <!--
     <script async defer
         src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFYLT473lC55zLeTyL0Njnh0xOWJIIQ_s&libraries=places&callback=initializeApp"></script>
+    -->
+
+    <!-- Initialize without Google Maps for demo mode -->
+    <script>
+        (function () {
+            // Get locations from URL params or localStorage
+            var urlParams = new URLSearchParams(window.location.search);
+            var startLocation = urlParams.get('start') || localStorage.getItem('startLocation') || 'Pickup Location';
+            var endLocation = urlParams.get('end') || localStorage.getItem('endLocation') || 'Dropoff Location';
+
+            // Update the UI
+            var startEl = document.getElementById('start-location');
+            var endEl = document.getElementById('end-location');
+
+            if (startEl) startEl.textContent = startLocation;
+            if (endEl) endEl.textContent = endLocation;
+
+            // Calculate fake distance and price
+            var fakeDistance = Math.floor(Math.random() * 20) + 5; // 5-25 km
+            var fakePrice = Math.floor(fakeDistance * 3);
+
+            var priceEl = document.getElementById('price-amount');
+            var distanceEl = document.getElementById('journey-distance');
+
+            if (priceEl) priceEl.textContent = fakePrice;
+            if (distanceEl) distanceEl.textContent = fakeDistance + ' km';
+
+            // Show demo drivers
+            var driversListEl = document.getElementById('drivers-list');
+            if (driversListEl) {
+                driversListEl.innerHTML = `
+                    <div class="driver-card" style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border-radius: 12px; padding: 20px; margin-bottom: 15px; border: 1px solid #333;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 18px; font-weight: 600; color: white;">Demo Driver 1</div>
+                                <div style="font-size: 14px; color: #4CAF50; margin-top: 4px;">⭐ 4.8 rating</div>
+                                <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px;">Honda City • GJ-01-XX-1234</div>
+                            </div>
+                            <button style="background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">₹${fakePrice}</button>
+                        </div>
+                    </div>
+                    <div class="driver-card" style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border-radius: 12px; padding: 20px; margin-bottom: 15px; border: 1px solid #333;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 18px; font-weight: 600; color: white;">Demo Driver 2</div>
+                                <div style="font-size: 14px; color: #4CAF50; margin-top: 4px;">⭐ 4.5 rating</div>
+                                <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px;">Maruti Swift • GJ-01-YY-5678</div>
+                            </div>
+                            <button style="background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">₹${fakePrice - 10}</button>
+                        </div>
+                    </div>
+                    <p style="text-align: center; color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 20px;">Demo mode - Connect backend for real drivers</p>
+                `;
+            }
+
+            // Show map fallback
+            var mapEl = document.getElementById('map');
+            if (mapEl) {
+                mapEl.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); color: white; text-align: center;"><div style="font-size: 64px; margin-bottom: 20px;">🗺️</div><h3 style="font-size: 24px; margin-bottom: 16px;">Map Unavailable</h3><p style="font-size: 14px; color: rgba(255,255,255,0.7);">Demo mode - Route from ' + startLocation + ' to ' + endLocation + '</p></div>';
+            }
+
+            console.log('Passenger confirmation initialized in demo mode');
+        })();
+    </script>
 </body>
 
 </html>

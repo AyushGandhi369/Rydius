@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="description" content="RideMate - Profile">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <title>Profile - RideMate</title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-72x72.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mobile-responsive.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding-bottom: 70px;
+        }
+
+        /* Profile Header */
+        .profile-header {
+            background: #fff;
+            padding: 28px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid #eee;
+            animation: headerEnter 0.5s ease;
+        }
+
+        @keyframes headerEnter {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #E53935 0%, #FF7043 50%, #FFB74D 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: #fff;
+            font-weight: 600;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(229, 57, 53, 0.3);
+            animation: avatarPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes avatarPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 4px 15px rgba(229, 57, 53, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 4px 25px rgba(229, 57, 53, 0.5);
+            }
+        }
+
+        .avatar::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 14px;
+            height: 14px;
+            background: #4CAF50;
+            border-radius: 50%;
+            border: 2px solid #fff;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+
+        .user-rating {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .user-rating .star {
+            color: #FFD700;
+            font-size: 16px;
+        }
+
+        .verify-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            background: #E8F5E9;
+            color: #2E7D32;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+
+        .verify-btn:hover {
+            background: #C8E6C9;
+        }
+
+        .verify-btn:active {
+            transform: scale(0.96);
+        }
+
+        .verify-icon {
+            font-size: 14px;
+        }
+
+        /* Profile Progress */
+        .profile-progress {
+            background: #fff;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+            animation: fadeIn 0.5s ease 0.1s both;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .progress-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .progress-text strong {
+            font-size: 18px;
+            color: #E53935;
+        }
+
+        .progress-link {
+            font-size: 13px;
+            color: #2196F3;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 6px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #E53935, #FF7043);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Warning Banner */
+        .warning-banner {
+            background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+            padding: 14px 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin: 0;
+            animation: fadeIn 0.5s ease 0.2s both;
+        }
+
+        .warning-icon {
+            width: 24px;
+            height: 24px;
+            background: #E53935;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .warning-text {
+            flex: 1;
+            font-size: 13px;
+            color: #BF360C;
+            line-height: 1.5;
+        }
+
+        .warning-close {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: #999;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .warning-close:hover {
+            background: rgba(0, 0, 0, 0.1);
+            color: #666;
+        }
+
+        /* Menu Sections */
+        .menu-section {
+            background: #fff;
+            margin-top: 12px;
+            animation: sectionEnter 0.5s ease both;
+        }
+
+        .menu-section:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        .menu-section:nth-child(5) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes sectionEnter {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1a1a1a;
+            padding: 16px 20px 8px;
+            border-left: 3px solid #E53935;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            text-decoration: none;
+            color: #1a1a1a;
+            border-bottom: 1px solid #f7f7f7;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(229, 57, 53, 0.03), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .menu-item:hover::before {
+            left: 100%;
+        }
+
+        .menu-item:hover {
+            background: #fafafa;
+        }
+
+        .menu-item:active {
+            background: #f5f5f5;
+            transform: scale(0.99);
+        }
+
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .menu-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+
+        .menu-text {
+            flex: 1;
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .menu-badge {
+            padding: 3px 8px;
+            background: #E53935;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .menu-arrow {
+            color: #ccc;
+            font-size: 16px;
+            transition: transform 0.2s ease;
+        }
+
+        .menu-item:hover .menu-arrow {
+            transform: translateX(3px);
+            color: #999;
+        }
+
+        /* Sign Out */
+        .signout-section {
+            padding: 20px;
+            margin-top: 12px;
+            animation: fadeIn 0.5s ease 0.5s both;
+        }
+
+        .signout-btn {
+            width: 100%;
+            padding: 14px;
+            background: #fff;
+            border: 1.5px solid #E53935;
+            color: #E53935;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .signout-btn:hover {
+            background: #E53935;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(229, 57, 53, 0.3);
+        }
+
+        .signout-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* App Version */
+        .app-version {
+            text-align: center;
+            padding: 16px;
+            font-size: 12px;
+            color: #ccc;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Profile Header -->
+    <div class="profile-header">
+        <div class="avatar" id="user-avatar">A</div>
+        <div class="user-info">
+            <div class="user-name" id="user-name">Guest User</div>
+            <div class="user-rating">
+                <span class="star">★</span>
+                <span id="user-rating">0.0</span>
+                <span style="color:#aaa">(0 rides)</span>
+            </div>
+            <button class="verify-btn">
+                <span class="verify-icon">🛡️</span>
+                Verify Organization
+            </button>
+        </div>
+    </div>
+
+    <!-- Profile Progress -->
+    <div class="profile-progress">
+        <div class="progress-header">
+            <p class="progress-text"><strong>7/8</strong> Steps Left in Profile</p>
+            <a href="#" class="progress-link">Complete →</a>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- Warning Banner -->
+    <div class="warning-banner" id="warning-banner">
+        <div class="warning-icon">!</div>
+        <p class="warning-text">
+            Never transfer money or communicate outside the RideMate app. Report any Car Owner asking for payments
+            outside the app to help keep community safe.
+        </p>
+        <button class="warning-close" onclick="dismissWarning()">×</button>
+    </div>
+
+    <!-- Your Account Section -->
+    <div class="menu-section">
+        <h3 class="section-title">Your Account</h3>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">💳</span>
+            <span class="menu-text">Transactions</span>
+            <span class="menu-arrow">›</span>
+        </a>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">⭐</span>
+            <span class="menu-text">Buy Prime</span>
+            <span class="menu-badge">Save 20%</span>
+            <span class="menu-arrow">›</span>
+        </a>
+    </div>
+
+    <!-- Explore & Share Section -->
+    <div class="menu-section">
+        <h3 class="section-title">Explore & Share</h3>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">🎁</span>
+            <span class="menu-text">Invite & Earn</span>
+            <span class="menu-arrow">›</span>
+        </a>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">📊</span>
+            <span class="menu-text">Share my Contribution</span>
+            <span class="menu-arrow">›</span>
+        </a>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">💜</span>
+            <span class="menu-text">Why users love RideMate</span>
+            <span class="menu-arrow">›</span>
+        </a>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">🎬</span>
+            <span class="menu-text">Help Videos</span>
+            <span class="menu-arrow">›</span>
+        </a>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">💡</span>
+            <span class="menu-text">Share an Awareness Idea</span>
+            <span class="menu-badge">New</span>
+            <span class="menu-arrow">›</span>
+        </a>
+    </div>
+
+    <!-- Support Section -->
+    <div class="menu-section">
+        <h3 class="section-title">Support</h3>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">❓</span>
+            <span class="menu-text">Help & FAQ</span>
+            <span class="menu-arrow">›</span>
+        </a>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">📞</span>
+            <span class="menu-text">Contact Us</span>
+            <span class="menu-arrow">›</span>
+        </a>
+        <a href="#" class="menu-item">
+            <span class="menu-icon">⚙️</span>
+            <span class="menu-text">Settings</span>
+            <span class="menu-arrow">›</span>
+        </a>
+    </div>
+
+    <!-- Sign Out -->
+    <div class="signout-section">
+        <button class="signout-btn" onclick="signOut()">Sign Out</button>
+    </div>
+
+    <div class="app-version">RideMate v1.0.0</div>
+
+    <!-- Bottom Navigation -->
+    <nav class="mobile-bottom-nav">
+        <a href="index.html">
+            <span class="nav-icon">🚗</span>
+            <span>sRide</span>
+        </a>
+        <a href="my-rides.html">
+            <span class="nav-icon">🔄</span>
+            <span>My Rides</span>
+        </a>
+        <a href="profile.html" class="active">
+            <span class="nav-icon">👤</span>
+            <span>Profile</span>
+        </a>
+    </nav>
+
+    <script>
+        // Animate progress bar on load
+        window.addEventListener('DOMContentLoaded', function () {
+            setTimeout(function () {
+                // 1 out of 8 completed = 12.5%
+                document.getElementById('progress-bar').style.width = '12.5%';
+            }, 300);
+        });
+
+        // Dismiss warning with animation
+        function dismissWarning() {
+            const banner = document.getElementById('warning-banner');
+            banner.style.transition = 'all 0.3s ease';
+            banner.style.opacity = '0';
+            banner.style.height = banner.offsetHeight + 'px';
+            setTimeout(() => {
+                banner.style.height = '0';
+                banner.style.padding = '0';
+                banner.style.margin = '0';
+                banner.style.overflow = 'hidden';
+            }, 100);
+            setTimeout(() => banner.remove(), 400);
+        }
+
+        // Load user data
+        async function loadUserData() {
+            try {
+                const response = await fetch('/api/auth/status');
+                const data = await response.json();
+
+                if (data.isAuthenticated && data.user) {
+                    const name = data.user.name || 'User';
+                    document.getElementById('user-name').textContent = name;
+                    document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+                    document.getElementById('user-rating').textContent = data.user.rating || '0.0';
+                }
+            } catch (error) {
+                console.log('Not logged in or error loading user data');
+            }
+        }
+
+        // Sign out
+        async function signOut() {
+            const btn = document.querySelector('.signout-btn');
+            btn.textContent = 'Signing out...';
+            btn.style.opacity = '0.7';
+
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+            } catch (error) {
+                console.error('Error signing out:', error);
+            }
+
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 500);
+        }
+
+        // Initialize
+        loadUserData();
+    </script>
+</body>
+
+</html>

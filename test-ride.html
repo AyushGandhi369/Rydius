@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RideMate - Test Page</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .test-form {
+            max-width: 500px;
+            margin: 100px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .test-form h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .test-input-group {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .test-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .test-input:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .test-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .test-suggestion-item {
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .test-suggestion-item:hover {
+            background: #f5f5f5;
+        }
+
+        .test-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .test-btn:hover {
+            opacity: 0.9;
+        }
+
+        .test-status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="test-form">
+        <h1>🚗 RideMate Test</h1>
+
+        <div class="test-input-group">
+            <input type="text" id="test-pickup" class="test-input" placeholder="Enter pickup location"
+                autocomplete="off">
+            <div id="test-pickup-suggestions" class="test-suggestions"></div>
+        </div>
+
+        <div class="test-input-group">
+            <input type="text" id="test-dropoff" class="test-input" placeholder="Enter dropoff location"
+                autocomplete="off">
+            <div id="test-dropoff-suggestions" class="test-suggestions"></div>
+        </div>
+
+        <button class="test-btn" id="test-driver-btn">Heading to (Driver)</button>
+        <button class="test-btn" id="test-passenger-btn"
+            style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">Be Passenger</button>
+
+        <div class="test-status" id="test-status">Status: Ready</div>
+    </div>
+
+    <script>
+        // Locations list
+        var LOCATIONS = [
+            "Satellite, Ahmedabad",
+            "Vastrapur, Ahmedabad",
+            "Prahladnagar, Ahmedabad",
+            "Navrangpura, Ahmedabad",
+            "CG Road, Ahmedabad",
+            "SG Highway, Ahmedabad",
+            "Thaltej, Ahmedabad",
+            "Bodakdev, Ahmedabad",
+            "Bopal, Ahmedabad",
+            "Maninagar, Ahmedabad",
+            "Chandkheda, Ahmedabad",
+            "Gota, Ahmedabad",
+            "Naranpura, Ahmedabad",
+            "Gurukul, Ahmedabad",
+            "Shivranjani, Ahmedabad",
+            "IIM Ahmedabad",
+            "Ahmedabad Railway Station",
+            "Ahmedabad Airport",
+            "Gandhinagar, Gujarat",
+            "Vadodara, Gujarat"
+        ];
+
+        var statusDiv = document.getElementById('test-status');
+
+        function log(msg) {
+            console.log(msg);
+            statusDiv.textContent = 'Status: ' + msg;
+        }
+
+        // Setup autocomplete for an input
+        function setupAutocomplete(inputId, suggestionsId) {
+            var input = document.getElementById(inputId);
+            var suggestions = document.getElementById(suggestionsId);
+
+            if (!input || !suggestions) {
+                log('ERROR: Elements not found for ' + inputId);
+                return;
+            }
+
+            input.addEventListener('input', function () {
+                var query = this.value.toLowerCase().trim();
+
+                if (query.length < 1) {
+                    suggestions.style.display = 'none';
+                    return;
+                }
+
+                var matches = LOCATIONS.filter(function (loc) {
+                    return loc.toLowerCase().indexOf(query) !== -1;
+                }).slice(0, 5);
+
+                if (matches.length === 0) {
+                    suggestions.innerHTML = '<div class="test-suggestion-item" style="color:#888;">No results</div>';
+                } else {
+                    suggestions.innerHTML = matches.map(function (loc) {
+                        return '<div class="test-suggestion-item" data-value="' + loc + '">📍 ' + loc + '</div>';
+                    }).join('');
+                }
+
+                suggestions.style.display = 'block';
+                log('Showing ' + matches.length + ' suggestions for "' + query + '"');
+
+                // Add click handlers
+                var items = suggestions.querySelectorAll('.test-suggestion-item');
+                items.forEach(function (item) {
+                    item.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        var value = this.getAttribute('data-value');
+                        if (value) {
+                            input.value = value;
+                            suggestions.style.display = 'none';
+                            log('Selected: ' + value);
+                        }
+                    });
+                });
+            });
+
+            input.addEventListener('blur', function () {
+                setTimeout(function () {
+                    suggestions.style.display = 'none';
+                }, 200);
+            });
+
+            log('Autocomplete ready for ' + inputId);
+        }
+
+        // Navigation function
+        function navigate(type) {
+            var pickup = document.getElementById('test-pickup').value.trim();
+            var dropoff = document.getElementById('test-dropoff').value.trim();
+
+            log('Navigation clicked: ' + type + ', pickup=' + pickup + ', dropoff=' + dropoff);
+
+            if (!pickup || !dropoff) {
+                alert('Please enter both pickup and dropoff locations!');
+                return;
+            }
+
+            localStorage.setItem('startLocation', pickup);
+            localStorage.setItem('endLocation', dropoff);
+
+            var page = type === 'driver' ? 'driver-confirmation.html' : 'passenger-confirmation.html';
+            var url = page + '?start=' + encodeURIComponent(pickup) + '&end=' + encodeURIComponent(dropoff);
+
+            log('Navigating to: ' + url);
+            window.location.href = url;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            log('Page loaded, setting up...');
+
+            setupAutocomplete('test-pickup', 'test-pickup-suggestions');
+            setupAutocomplete('test-dropoff', 'test-dropoff-suggestions');
+
+            document.getElementById('test-driver-btn').addEventListener('click', function () {
+                navigate('driver');
+            });
+
+            document.getElementById('test-passenger-btn').addEventListener('click', function () {
+                navigate('passenger');
+            });
+
+            log('All ready! Try typing in the inputs.');
+        });
+    </script>
+</body>
+
+</html>

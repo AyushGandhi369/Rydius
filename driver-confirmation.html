@@ -472,6 +472,151 @@
                 font-size: 15px;
             }
         }
+
+        /* ===== Driver Savings Card ===== */
+        .driver-savings-card {
+            background: linear-gradient(135deg, #1a1508 0%, #2a2210 100%);
+            border: 1px solid rgba(255, 193, 7, 0.2);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .driver-savings-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 193, 7, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .savings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .savings-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .savings-badge {
+            background: rgba(255, 193, 7, 0.15);
+            color: #FFC107;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+
+        .savings-amount {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+
+        .savings-currency {
+            font-size: 22px;
+            font-weight: 800;
+            color: #FFC107;
+        }
+
+        .savings-value {
+            font-size: 42px;
+            font-weight: 900;
+            color: #FFC107;
+            line-height: 1;
+            letter-spacing: -2px;
+        }
+
+        .savings-sublabel {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+            margin-bottom: 20px;
+        }
+
+        .savings-benefits {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .savings-benefit-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .savings-benefit-row:hover {
+            background: rgba(255, 255, 255, 0.07);
+            transform: translateX(4px);
+        }
+
+        .savings-benefit-icon {
+            font-size: 18px;
+            width: 28px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .savings-benefit-text {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 500;
+            line-height: 1.3;
+        }
+
+        .savings-benefit-highlight {
+            color: #FFC107;
+            font-weight: 700;
+        }
+
+        .savings-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            gap: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+
+        .savings-loading .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 193, 7, 0.2);
+            border-top-color: #FFC107;
+            border-radius: 50%;
+            animation: driverSpin 0.8s linear infinite;
+        }
+
+        @keyframes driverSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .savings-value {
+                font-size: 36px;
+            }
+        }
     </style>
 </head>
 
@@ -518,6 +663,44 @@
                         <div class="route-point">
                             <span class="route-icon route-end" style="color: #f44336;">📍</span>
                             <span class="route-text" id="end-location">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Driver Savings Card -->
+                <div class="driver-savings-card" id="driver-savings-card">
+                    <div id="driver-savings-loading" class="savings-loading">
+                        <div class="spinner"></div>
+                        Calculating your fuel recovery...
+                    </div>
+                    <div id="driver-savings-content" style="display:none;">
+                        <div class="savings-header">
+                            <div>
+                                <div class="savings-label">Fuel Cost Recovered</div>
+                                <div class="savings-amount">
+                                    <span class="savings-currency">₹</span>
+                                    <span class="savings-value" id="driver-saved-amount">--</span>
+                                </div>
+                                <div class="savings-sublabel" id="driver-savings-sublabel">From fuel sharing on this
+                                    trip</div>
+                            </div>
+                            <div class="savings-badge">🌟 EARNED</div>
+                        </div>
+                        <div class="savings-benefits">
+                            <div class="savings-benefit-row">
+                                <span class="savings-benefit-icon">👍</span>
+                                <span class="savings-benefit-text" id="driver-msg">Same commute, lighter expense.</span>
+                            </div>
+                            <div class="savings-benefit-row">
+                                <span class="savings-benefit-icon">🌱</span>
+                                <span class="savings-benefit-text" id="driver-eco-msg">You helped someone skip a solo
+                                    ride today.</span>
+                            </div>
+                            <div class="savings-benefit-row">
+                                <span class="savings-benefit-icon">⛽</span>
+                                <span class="savings-benefit-text" id="driver-fuel-info">You’re not earning. You’re just
+                                    driving smarter.</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -628,6 +811,10 @@
 
             document.getElementById('start-location').textContent = startLocation;
             document.getElementById('end-location').textContent = endLocation;
+
+            // Use estimated distance (default 20km) for cost sharing
+            const estimatedDistance = 20;
+            fetchDriverCostSharing(estimatedDistance);
 
             // Initialize WebSocket connection
             initializeWebSocket();
@@ -797,6 +984,14 @@
                 const data = await response.json();
 
                 if (!data.isAuthenticated) {
+                    // Check for demo user from localStorage
+                    const demoUser = localStorage.getItem('demoUser');
+                    if (demoUser) {
+                        console.log('Demo mode active, continuing without server auth');
+                        showNotification('Demo mode: Trip created successfully!', 'success');
+                        return;
+                    }
+
                     showNotification('Please log in to create a trip', 'error');
                     setTimeout(() => {
                         window.location.href = 'login.html';
@@ -812,7 +1007,15 @@
                     showExistingTripWarning(activeTripData.trip);
                 }
             } catch (error) {
-                console.error('Error checking auth:', error);
+                console.log('Server not available, using demo mode');
+                // Demo mode - continue without auth check
+                // Check for demo user
+                const demoUser = localStorage.getItem('demoUser');
+                if (demoUser) {
+                    showNotification('Demo mode: Trip created!', 'success');
+                } else {
+                    showNotification('Demo mode: View your route below', 'info');
+                }
             }
         }
 
@@ -1039,6 +1242,9 @@
                     document.getElementById('route-duration').textContent = leg.duration.text;
                     document.getElementById('route-status').textContent = 'Ready for passengers';
 
+                    // Fetch driver cost sharing
+                    fetchDriverCostSharing(routeDistance);
+
                     // Add custom markers for start and end points
                     createMarker(leg.start_location, 'Start', 'https://maps.google.com/mapfiles/ms/icons/green-dot.png');
                     createMarker(leg.end_location, 'End', 'https://maps.google.com/mapfiles/ms/icons/red-dot.png');
@@ -1131,6 +1337,55 @@
                 }
             });
             return marker;
+        }
+
+        // Fetch cost sharing data for driver
+        async function fetchDriverCostSharing(distanceInKm) {
+            try {
+                const vehicleType = localStorage.getItem('vehicleType') || '4W';
+                const fuelType = localStorage.getItem('fuelType') || 'petrol';
+                const numPassengers = parseInt(localStorage.getItem('seatCount')) || 1;
+
+                const response = await fetch('/api/cost-sharing/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        distanceInKm: distanceInKm,
+                        vehicleType: vehicleType,
+                        fuelType: fuelType,
+                        numberOfPassengers: numPassengers
+                    })
+                });
+
+                if (!response.ok) throw new Error('API error');
+                const data = await response.json();
+
+                // Show the card
+                document.getElementById('driver-savings-loading').style.display = 'none';
+                document.getElementById('driver-savings-content').style.display = 'block';
+
+                // The amount passengers will pay (= driver fuel recovery)
+                document.getElementById('driver-saved-amount').textContent = data.passengerPool;
+                document.getElementById('driver-savings-sublabel').textContent =
+                    data.distanceInKm + ' km · ' + data.fuelType + ' · ' + data.vehicleType;
+
+                // Driver messages
+                document.getElementById('driver-msg').textContent = data.driverMessage;
+                document.getElementById('driver-eco-msg').textContent = data.driverEcoMessage;
+                document.getElementById('driver-fuel-info').innerHTML =
+                    'Total fuel cost: <span class="savings-benefit-highlight">₹' + data.baseTripCost +
+                    '</span> · You absorb only <span class="savings-benefit-highlight">₹' +
+                    (data.baseTripCost - data.passengerPool) + '</span>';
+
+            } catch (error) {
+                console.error('Driver cost sharing error:', error);
+                document.getElementById('driver-savings-loading').style.display = 'none';
+                document.getElementById('driver-savings-content').style.display = 'block';
+                document.getElementById('driver-saved-amount').textContent = '--';
+                document.getElementById('driver-msg').textContent = 'Same commute, lighter expense.';
+                document.getElementById('driver-eco-msg').textContent = 'You helped reduce traffic today.';
+                document.getElementById('driver-fuel-info').textContent = 'Cost details will appear when route loads.';
+            }
         }
 
         function geocodeLocations() {
@@ -1697,9 +1952,23 @@
     <!-- Socket.io for real-time notifications -->
     <script src="/socket.io/socket.io.js"></script>
 
-    <!-- Google Maps API -->
+    <!-- Google Maps API - DISABLED for demo mode -->
+    <!--
     <script async defer
         src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFYLT473lC55zLeTyL0Njnh0xOWJIIQ_s&libraries=places,geometry&callback=initializeApp"></script>
+    -->
+
+    <!-- Initialize without Google Maps for demo mode -->
+    <script>
+        // Auto-initialize without Google Maps
+        if (typeof initializeAppWithoutMap === 'function') {
+            initializeAppWithoutMap();
+        } else if (typeof initializeApp === 'function') {
+            // Fallback - define googleMapsAvailable as false
+            window.googleMapsAvailable = false;
+            initializeApp();
+        }
+    </script>
 </body>
 
 </html>

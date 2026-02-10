@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="description" content="RideMate - My Rides">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <title>My Rides - RideMate</title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-72x72.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mobile-responsive.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding-bottom: 70px;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .page-header {
+            background: #fff;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        /* Tabs */
+        .tabs-container {
+            background: #fff;
+            border-bottom: 1px solid #eee;
+            padding: 0 10px;
+            position: sticky;
+            top: 57px;
+            z-index: 99;
+        }
+
+        .tabs {
+            display: flex;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x mandatory;
+        }
+
+        .tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tab {
+            padding: 14px 16px;
+            font-size: 14px;
+            color: #999;
+            border: none;
+            background: none;
+            cursor: pointer;
+            white-space: nowrap;
+            position: relative;
+            font-weight: 500;
+            transition: color 0.3s ease;
+            scroll-snap-align: start;
+            flex: 1;
+            text-align: center;
+        }
+
+        .tab.active {
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 16px;
+            right: 16px;
+            height: 3px;
+            background: #1a1a1a;
+            border-radius: 3px 3px 0 0;
+            animation: tabSlideIn 0.3s ease;
+        }
+
+        @keyframes tabSlideIn {
+            from {
+                transform: scaleX(0);
+            }
+
+            to {
+                transform: scaleX(1);
+            }
+        }
+
+        /* Tab Content with swipe */
+        .tab-panels {
+            position: relative;
+            overflow: hidden;
+            touch-action: pan-y;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeSlideIn 0.35s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes fadeSlideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Pull to Refresh */
+        .pull-indicator {
+            text-align: center;
+            padding: 0;
+            overflow: hidden;
+            height: 0;
+            transition: height 0.3s ease;
+            color: #999;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .pull-indicator.active {
+            height: 50px;
+        }
+
+        .pull-indicator .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ddd;
+            border-top: 2px solid #E53935;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 50px 20px 30px;
+            text-align: center;
+            animation: emptyStateEnter 0.6s ease;
+        }
+
+        @keyframes emptyStateEnter {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .empty-state h2 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 6px;
+        }
+
+        .empty-state p {
+            font-size: 15px;
+            color: #888;
+            margin-bottom: 24px;
+        }
+
+        /* Detailed Car SVG */
+        .empty-state-image {
+            width: 220px;
+            height: auto;
+            margin-bottom: 10px;
+            animation: carBounce 3s ease-in-out infinite;
+        }
+
+        @keyframes carBounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-6px);
+            }
+        }
+
+        /* Share & Earn Section */
+        .share-section {
+            background: #fff;
+            margin: 16px 16px;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            animation: shareEnter 0.6s ease 0.2s both;
+        }
+
+        @keyframes shareEnter {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .share-label {
+            font-size: 12px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .referral-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .referral-code {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+            letter-spacing: 2px;
+        }
+
+        .share-icon-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #2196F3;
+        }
+
+        .share-icon-btn:hover {
+            background: #e3f2fd;
+            transform: scale(1.05);
+        }
+
+        .share-icon-btn:active {
+            transform: scale(0.95);
+        }
+
+        .share-icon-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .whatsapp-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 14px;
+            background: #25D366;
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+        }
+
+        .whatsapp-btn:hover {
+            background: #20BD5A;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+        }
+
+        .whatsapp-btn:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .whatsapp-btn svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        /* FAB Button */
+        .fab {
+            position: fixed;
+            bottom: 85px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 22px;
+            background: #E53935;
+            color: #fff;
+            border: none;
+            border-radius: 30px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(229, 57, 53, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            animation: fabEnter 0.5s ease 0.4s both;
+        }
+
+        @keyframes fabEnter {
+            from {
+                opacity: 0;
+                transform: scale(0.5) translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .fab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(229, 57, 53, 0.5);
+        }
+
+        .fab:active {
+            transform: translateY(0) scale(0.95);
+        }
+
+        .fab .fab-icon {
+            font-size: 20px;
+            font-weight: 300;
+            line-height: 1;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #333;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10001;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.success {
+            background: #2E7D32;
+        }
+
+        /* Tab badge for counts */
+        .tab-badge {
+            display: inline-block;
+            min-width: 18px;
+            height: 18px;
+            line-height: 18px;
+            padding: 0 5px;
+            border-radius: 9px;
+            background: #E53935;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            margin-left: 4px;
+            text-align: center;
+        }
+
+        /* Other tab empty states */
+        .empty-state-simple {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 60px 20px;
+            text-align: center;
+            animation: emptyStateEnter 0.5s ease;
+        }
+
+        .empty-state-simple .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state-simple h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 6px;
+        }
+
+        .empty-state-simple p {
+            font-size: 14px;
+            color: #999;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="page-header">
+        <h1>My Rides</h1>
+    </header>
+
+    <!-- Pull to Refresh -->
+    <div class="pull-indicator" id="pull-indicator">
+        <div class="spinner"></div>
+        <span>Refreshing...</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-container">
+        <div class="tabs">
+            <button class="tab active" data-tab="upcoming">Upcoming</button>
+            <button class="tab" data-tab="repeat">Repeat</button>
+            <button class="tab" data-tab="completed">Completed</button>
+            <button class="tab" data-tab="other">Other</button>
+        </div>
+    </div>
+
+    <!-- Tab Contents -->
+    <div class="tab-panels" id="tab-panels">
+        <div id="upcoming" class="tab-content active">
+            <div class="empty-state">
+                <svg class="empty-state-image" viewBox="0 0 280 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Road -->
+                    <rect x="0" y="130" width="280" height="20" rx="4" fill="#F0F0F0" />
+                    <line x1="20" y1="140" x2="50" y2="140" stroke="#ddd" stroke-width="2" stroke-dasharray="6 4" />
+                    <line x1="70" y1="140" x2="100" y2="140" stroke="#ddd" stroke-width="2" stroke-dasharray="6 4" />
+                    <line x1="120" y1="140" x2="150" y2="140" stroke="#ddd" stroke-width="2" stroke-dasharray="6 4" />
+                    <line x1="170" y1="140" x2="200" y2="140" stroke="#ddd" stroke-width="2" stroke-dasharray="6 4" />
+                    <line x1="220" y1="140" x2="250" y2="140" stroke="#ddd" stroke-width="2" stroke-dasharray="6 4" />
+
+                    <!-- Shadow under car -->
+                    <ellipse cx="145" cy="132" rx="65" ry="6" fill="rgba(0,0,0,0.08)" />
+
+                    <!-- Car body bottom -->
+                    <rect x="75" y="85" width="140" height="45" rx="10" fill="#E53935" />
+                    <!-- Car body top -->
+                    <path d="M100 85 L110 55 C112 50 116 47 122 47 L168 47 C174 47 178 50 180 55 L190 85 Z"
+                        fill="#E53935" />
+                    <!-- Car roof highlight -->
+                    <path d="M105 82 L113 57 C115 53 118 51 123 51 L167 51 C172 51 175 53 177 57 L185 82 Z"
+                        fill="#EF5350" opacity="0.6" />
+
+                    <!-- Windows -->
+                    <path d="M113 80 L119 58 C120 55 122 53 126 53 L143 53 L143 80 Z" fill="#E3F2FD" rx="3" />
+                    <path d="M148 80 L148 53 L164 53 C168 53 170 55 171 58 L177 80 Z" fill="#E3F2FD" rx="3" />
+                    <!-- Window shine -->
+                    <path d="M117 76 L121 62 C122 59 123 57 126 57 L130 57 L130 76 Z" fill="rgba(255,255,255,0.4)" />
+                    <path d="M152 76 L152 57 L158 57 C161 57 162 59 163 62 L165 76 Z" fill="rgba(255,255,255,0.4)" />
+
+                    <!-- Passengers -->
+                    <!-- Driver -->
+                    <circle cx="133" cy="62" r="8" fill="#FFCCBC" />
+                    <circle cx="133" cy="59" r="5" fill="#5D4037" />
+                    <circle cx="131" cy="63" r="1" fill="#333" />
+                    <circle cx="135" cy="63" r="1" fill="#333" />
+                    <path d="M131 66 Q133 68 135 66" stroke="#333" stroke-width="0.8" fill="none" />
+
+                    <!-- Passenger -->
+                    <circle cx="159" cy="62" r="8" fill="#FFCCBC" />
+                    <circle cx="159" cy="58" r="6" fill="#FF8A65" />
+                    <circle cx="157" cy="63" r="1" fill="#333" />
+                    <circle cx="161" cy="63" r="1" fill="#333" />
+                    <path d="M157 66 Q159 68 161 66" stroke="#333" stroke-width="0.8" fill="none" />
+
+                    <!-- Front bumper -->
+                    <rect x="200" y="100" width="20" height="6" rx="3" fill="#C62828" />
+                    <!-- Rear bumper -->
+                    <rect x="70" y="100" width="20" height="6" rx="3" fill="#C62828" />
+
+                    <!-- Headlights -->
+                    <rect x="210" y="95" width="8" height="14" rx="4" fill="#FFD54F" />
+                    <rect x="210" y="95" width="4" height="14" rx="2" fill="#FFECB3" />
+                    <!-- Taillights -->
+                    <rect x="72" y="95" width="8" height="14" rx="4" fill="#FF8A80" />
+
+                    <!-- Wheels -->
+                    <circle cx="110" cy="130" r="16" fill="#37474F" />
+                    <circle cx="110" cy="130" r="10" fill="#546E7A" />
+                    <circle cx="110" cy="130" r="4" fill="#78909C" />
+                    <circle cx="180" cy="130" r="16" fill="#37474F" />
+                    <circle cx="180" cy="130" r="10" fill="#546E7A" />
+                    <circle cx="180" cy="130" r="4" fill="#78909C" />
+                    <!-- Wheel spokes -->
+                    <line x1="110" y1="120" x2="110" y2="140" stroke="#78909C" stroke-width="1.5" />
+                    <line x1="100" y1="130" x2="120" y2="130" stroke="#78909C" stroke-width="1.5" />
+                    <line x1="180" y1="120" x2="180" y2="140" stroke="#78909C" stroke-width="1.5" />
+                    <line x1="170" y1="130" x2="190" y2="130" stroke="#78909C" stroke-width="1.5" />
+
+                    <!-- Door handle -->
+                    <rect x="147" y="96" width="14" height="3" rx="1.5" fill="#C62828" />
+                    <!-- Side mirror -->
+                    <ellipse cx="213" cy="82" rx="5" ry="4" fill="#C62828" />
+
+                    <!-- Motion lines -->
+                    <line x1="50" y1="90" x2="65" y2="90" stroke="#ccc" stroke-width="2" stroke-linecap="round"
+                        opacity="0.6" />
+                    <line x1="40" y1="100" x2="60" y2="100" stroke="#ccc" stroke-width="2" stroke-linecap="round"
+                        opacity="0.4" />
+                    <line x1="45" y1="110" x2="62" y2="110" stroke="#ccc" stroke-width="2" stroke-linecap="round"
+                        opacity="0.3" />
+
+                    <!-- Small cloud -->
+                    <circle cx="45" cy="25" r="12" fill="#f5f5f5" />
+                    <circle cx="55" cy="20" r="14" fill="#f5f5f5" />
+                    <circle cx="68" cy="25" r="10" fill="#f5f5f5" />
+
+                    <circle cx="225" cy="30" r="8" fill="#f5f5f5" />
+                    <circle cx="235" cy="26" r="10" fill="#f5f5f5" />
+                    <circle cx="245" cy="30" r="7" fill="#f5f5f5" />
+                </svg>
+
+                <h2>Whoops!</h2>
+                <p>No ride posted by you</p>
+            </div>
+
+            <!-- Share & Earn -->
+            <div class="share-section">
+                <div class="share-label">Share & Earn</div>
+                <div class="referral-row">
+                    <span class="referral-code" id="referral-code">RIDEMATE2026</span>
+                    <button class="share-icon-btn" onclick="copyReferralCode()" title="Copy code">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                            <polyline points="16 6 12 2 8 6" />
+                            <line x1="12" y1="2" x2="12" y2="15" />
+                        </svg>
+                    </button>
+                </div>
+                <button class="whatsapp-btn" onclick="shareOnWhatsapp()">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                    </svg>
+                    Share on WhatsApp
+                </button>
+            </div>
+        </div>
+
+        <div id="repeat" class="tab-content">
+            <div class="empty-state-simple">
+                <div class="empty-icon">🔄</div>
+                <h3>No Repeat Rides</h3>
+                <p>Set up recurring rides for your daily commute</p>
+            </div>
+        </div>
+
+        <div id="completed" class="tab-content">
+            <div class="empty-state-simple">
+                <div class="empty-icon">✅</div>
+                <h3>No Completed Rides</h3>
+                <p>Your completed rides will appear here</p>
+            </div>
+        </div>
+
+        <div id="other" class="tab-content">
+            <div class="empty-state-simple">
+                <div class="empty-icon">📋</div>
+                <h3>No Other Rides</h3>
+                <p>Cancelled or expired rides appear here</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAB Button -->
+    <button class="fab" onclick="window.location.href='index.html'">
+        <span class="fab-icon">+</span> New Ride
+    </button>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Bottom Navigation -->
+    <nav class="mobile-bottom-nav">
+        <a href="index.html">
+            <span class="nav-icon">🚗</span>
+            <span>sRide</span>
+        </a>
+        <a href="my-rides.html" class="active">
+            <span class="nav-icon">🔄</span>
+            <span>My Rides</span>
+        </a>
+        <a href="profile.html">
+            <span class="nav-icon">👤</span>
+            <span>Profile</span>
+        </a>
+    </nav>
+
+    <script>
+        // ==========================
+        // Tab Switching with Animation
+        // ==========================
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const tabNames = ['upcoming', 'repeat', 'completed', 'other'];
+        let currentTabIndex = 0;
+
+        function switchTab(index, direction) {
+            if (index < 0 || index >= tabNames.length) return;
+
+            // Remove active from all
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+
+            // Set direction animation
+            const content = document.getElementById(tabNames[index]);
+            if (direction === 'left') {
+                content.style.animation = 'fadeSlideInLeft 0.35s ease';
+            } else {
+                content.style.animation = 'fadeSlideIn 0.35s ease';
+            }
+
+            // Activate
+            tabs[index].classList.add('active');
+            content.classList.add('active');
+            currentTabIndex = index;
+
+            // Scroll tab into view
+            tabs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+
+        tabs.forEach((tab, index) => {
+            tab.addEventListener('click', function () {
+                const direction = index > currentTabIndex ? 'right' : 'left';
+                switchTab(index, direction);
+            });
+        });
+
+        // ==========================
+        // Swipe Gesture for Tabs
+        // ==========================
+        const tabPanels = document.getElementById('tab-panels');
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let isSwiping = false;
+
+        tabPanels.addEventListener('touchstart', function (e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            isSwiping = true;
+        }, { passive: true });
+
+        tabPanels.addEventListener('touchmove', function (e) {
+            if (!isSwiping) return;
+            const diffX = e.touches[0].clientX - touchStartX;
+            const diffY = e.touches[0].clientY - touchStartY;
+
+            // If vertical scroll dominates, cancel swipe
+            if (Math.abs(diffY) > Math.abs(diffX)) {
+                isSwiping = false;
+            }
+        }, { passive: true });
+
+        tabPanels.addEventListener('touchend', function (e) {
+            if (!isSwiping) return;
+
+            const diffX = e.changedTouches[0].clientX - touchStartX;
+            const threshold = 60;
+
+            if (Math.abs(diffX) > threshold) {
+                if (diffX < 0 && currentTabIndex < tabNames.length - 1) {
+                    // Swipe left → next tab
+                    switchTab(currentTabIndex + 1, 'right');
+                } else if (diffX > 0 && currentTabIndex > 0) {
+                    // Swipe right → previous tab
+                    switchTab(currentTabIndex - 1, 'left');
+                }
+            }
+            isSwiping = false;
+        }, { passive: true });
+
+        // ==========================
+        // Toast Notification
+        // ==========================
+        function showToast(message, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast' + (type ? ' ' + type : '');
+
+            // Trigger show
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+
+            // Auto hide after 2.5s
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+
+        // ==========================
+        // Copy Referral Code
+        // ==========================
+        function copyReferralCode() {
+            const code = document.getElementById('referral-code').textContent;
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(code).then(() => {
+                    showToast('✅ Referral code copied!', 'success');
+                }).catch(() => {
+                    fallbackCopy(code);
+                });
+            } else {
+                fallbackCopy(code);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('✅ Referral code copied!', 'success');
+            } catch (e) {
+                showToast('Code: ' + text);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // ==========================
+        // Share on WhatsApp
+        // ==========================
+        function shareOnWhatsapp() {
+            const code = document.getElementById('referral-code').textContent;
+            const message = `Hey! Join RideMate for easy carpooling. Use my referral code: ${code} to get started! Download now: https://ridemate.app`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        }
+
+        // ==========================
+        // Pull to Refresh
+        // ==========================
+        let pullStartY = 0;
+        let isPulling = false;
+        const pullIndicator = document.getElementById('pull-indicator');
+
+        window.addEventListener('touchstart', function (e) {
+            if (window.scrollY === 0) {
+                pullStartY = e.touches[0].clientY;
+                isPulling = true;
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', function (e) {
+            if (!isPulling) return;
+            const pullDistance = e.touches[0].clientY - pullStartY;
+
+            if (pullDistance > 60 && window.scrollY === 0) {
+                pullIndicator.classList.add('active');
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', function () {
+            if (pullIndicator.classList.contains('active')) {
+                // Simulate refresh
+                setTimeout(() => {
+                    pullIndicator.classList.remove('active');
+                    showToast('Updated!');
+                }, 1000);
+            }
+            isPulling = false;
+        }, { passive: true });
+    </script>
+</body>
+
+</html>
