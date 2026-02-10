@@ -3,29 +3,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value;
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
 
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, password })
-            });
+            if (!email || !password) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
 
-            const result = await response.json();
-            
-            if (response.ok) {
-                // Show success message
-                showNotification('Login successful! Redirecting...', 'success');
-                
-                // Redirect after short delay
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 1000);
-            } else {
-                showNotification(result.message || 'Login failed', 'error');
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification('Login successful! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1000);
+                } else {
+                    showNotification(result.message || 'Login failed', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showNotification('Network error. Please check your connection.', 'error');
             }
         });
     }
@@ -37,58 +44,109 @@ document.addEventListener('DOMContentLoaded', () => {
 
         signupForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const name = document.getElementById('name').value;
-            const email = document.getElementById('email').value;
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
 
-            const response = await fetch('/api/signup', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ name, email, password })
-            });
+            if (!name || !email || !password) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
 
-            const result = await response.json();
-            alert(result.message);
+            if (password.length < 6) {
+                showNotification('Password must be at least 6 characters', 'error');
+                return;
+            }
 
-            if (response.ok) {
-                otpSection.style.display = 'block';
-                signupButton.style.display = 'none';
+            try {
+                signupButton.disabled = true;
+                signupButton.textContent = 'Sending OTP...';
+
+                const response = await fetch('/api/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, email, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification(result.message || 'OTP sent! Check your email.', 'success');
+                    otpSection.style.display = 'block';
+                    signupButton.style.display = 'none';
+                } else {
+                    showNotification(result.message || 'Signup failed', 'error');
+                    signupButton.disabled = false;
+                    signupButton.textContent = 'Sign Up';
+                }
+            } catch (error) {
+                console.error('Signup error:', error);
+                showNotification('Network error. Please check your connection.', 'error');
+                signupButton.disabled = false;
+                signupButton.textContent = 'Sign Up';
             }
         });
 
         const verifyOtpBtn = document.getElementById('verify-otp-btn');
-        verifyOtpBtn.addEventListener('click', async () => {
-            const email = document.getElementById('email').value;
-            const otp = document.getElementById('otp').value;
+        if (verifyOtpBtn) {
+            verifyOtpBtn.addEventListener('click', async () => {
+                const email = document.getElementById('email').value.trim();
+                const otp = document.getElementById('otp').value.trim();
 
-            const response = await fetch('/api/verify-otp', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, otp })
+                if (!otp) {
+                    showNotification('Please enter the OTP', 'error');
+                    return;
+                }
+
+                try {
+                    verifyOtpBtn.disabled = true;
+                    verifyOtpBtn.textContent = 'Verifying...';
+
+                    const response = await fetch('/api/verify-otp', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ email, otp })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        showNotification('Account created successfully! Redirecting to login...', 'success');
+                        setTimeout(() => {
+                            window.location.href = 'login.html';
+                        }, 1500);
+                    } else {
+                        showNotification(result.message || 'OTP verification failed', 'error');
+                        verifyOtpBtn.disabled = false;
+                        verifyOtpBtn.textContent = 'Verify OTP';
+                    }
+                } catch (error) {
+                    console.error('OTP verification error:', error);
+                    showNotification('Network error. Please check your connection.', 'error');
+                    verifyOtpBtn.disabled = false;
+                    verifyOtpBtn.textContent = 'Verify OTP';
+                }
             });
-
-            const result = await response.json();
-            alert(result.message);
-
-            if (response.ok) {
-                window.location.href = 'login.html';
-            }
-        });
+        }
     }
 });
 
-// Notification function
+// Notification function - single source of truth
 function showNotification(message, type = 'info') {
-    // Create notification element
+    // Remove any existing notification
+    const existing = document.querySelector('.notification');
+    if (existing) {
+        existing.remove();
+    }
+
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
-    
-    // Add styles
+
     Object.assign(notification.style, {
         position: 'fixed',
         top: '20px',
@@ -100,18 +158,21 @@ function showNotification(message, type = 'info') {
         zIndex: '10000',
         transform: 'translateX(400px)',
         transition: 'transform 0.3s ease',
-        backgroundColor: type === 'success' ? '#4CAF50' : 
-                        type === 'error' ? '#f44336' : '#2196f3'
+        maxWidth: '350px',
+        fontSize: '14px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        backgroundColor: type === 'success' ? '#4CAF50' :
+            type === 'error' ? '#f44336' : '#2196f3'
     });
-    
+
     document.body.appendChild(notification);
-    
+
     // Animate in
-    setTimeout(() => {
+    requestAnimationFrame(() => {
         notification.style.transform = 'translateX(0)';
-    }, 100);
-    
-    // Remove after 3 seconds
+    });
+
+    // Remove after 4 seconds
     setTimeout(() => {
         notification.style.transform = 'translateX(400px)';
         setTimeout(() => {
@@ -119,5 +180,5 @@ function showNotification(message, type = 'info') {
                 document.body.removeChild(notification);
             }
         }, 300);
-    }, 3000);
+    }, 4000);
 }

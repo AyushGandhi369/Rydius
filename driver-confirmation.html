@@ -917,10 +917,16 @@
                 border: 2px solid rgba(255, 255, 255, 0.2);
             `;
 
-            notification.innerHTML = `
-                <div style="font-size: 18px; font-weight: 700; margin-bottom: 4px;">${title}</div>
-                <div style="font-size: 14px; opacity: 0.9;">${message}</div>
-            `;
+            const titleEl = document.createElement('div');
+            titleEl.style.cssText = 'font-size: 18px; font-weight: 700; margin-bottom: 4px;';
+            titleEl.textContent = title;
+
+            const messageEl = document.createElement('div');
+            messageEl.style.cssText = 'font-size: 14px; opacity: 0.9;';
+            messageEl.textContent = message;
+
+            notification.appendChild(titleEl);
+            notification.appendChild(messageEl);
 
             document.body.appendChild(notification);
 
@@ -984,14 +990,6 @@
                 const data = await response.json();
 
                 if (!data.isAuthenticated) {
-                    // Check for demo user from localStorage
-                    const demoUser = localStorage.getItem('demoUser');
-                    if (demoUser) {
-                        console.log('Demo mode active, continuing without server auth');
-                        showNotification('Demo mode: Trip created successfully!', 'success');
-                        return;
-                    }
-
                     showNotification('Please log in to create a trip', 'error');
                     setTimeout(() => {
                         window.location.href = 'login.html';
@@ -1938,7 +1936,9 @@
             notification.style.backgroundColor = type === 'error' ? '#d9534f' : (type === 'success' ? '#5cb85c' : '#5bc0de');
             document.body.appendChild(notification);
             setTimeout(() => {
-                document.body.removeChild(notification);
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
             }, 3000);
         }
 
@@ -1952,10 +1952,10 @@
     <!-- Socket.io for real-time notifications -->
     <script src="/socket.io/socket.io.js"></script>
 
-    <!-- Google Maps API - DISABLED for demo mode -->
+    <!-- Google Maps API - Requires proper API key configuration -->
     <!--
     <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFYLT473lC55zLeTyL0Njnh0xOWJIIQ_s&libraries=places,geometry&callback=initializeApp"></script>
+        src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places,geometry&callback=initializeApp"></script>
     -->
 
     <!-- Initialize without Google Maps for demo mode -->

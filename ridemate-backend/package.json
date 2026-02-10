@@ -12,6 +12,7 @@
   "type": "commonjs",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "dotenv": "^17.2.4",
     "express": "^5.1.0",
     "express-session": "^1.18.1",
     "node-fetch": "^3.3.2",
@@ -22,5 +23,3 @@
     "sqlite3": "^5.1.7"
   }
 }
-
-

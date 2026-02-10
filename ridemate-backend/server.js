@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcrypt');
@@ -16,7 +18,26 @@ const io = new Server(server, {
         methods: ["GET", "POST"]
     }
 });
-const port = 3000;
+const port = process.env.PORT || 3000;
+
+// ============= INPUT SANITIZATION HELPERS =============
+function sanitizeString(str) {
+    if (typeof str !== 'string') return '';
+    return str.trim().replace(/[<>]/g, '');
+}
+
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+function isValidCoordinate(lat, lng) {
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    return !isNaN(latNum) && !isNaN(lngNum) &&
+        latNum >= -90 && latNum <= 90 &&
+        lngNum >= -180 && lngNum <= 180;
+}
 const saltRounds = 10;
 
 // Temporary store for OTPs and user data
@@ -44,11 +65,13 @@ app.use(express.static(path.join(__dirname, '..')));
 
 // Session configuration
 app.use(session({
-    secret: 'ridemate-secret-key-2025',
+    secret: process.env.SESSION_SECRET || 'ridemate-dev-secret-change-in-production',
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false, // Set to true in production with HTTPS
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
 }));
@@ -145,8 +168,8 @@ db.serialize(() => {
     )`);
 });
 
-// Initialize Resend with your API key
-const resend = new Resend('re_KGzirrKc_NBV8ewAbbtc5Xpfjxmj2GvPE');
+// Initialize Resend with API key from environment variables
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ============= WEBSOCKET REAL-TIME NOTIFICATIONS =============
 
@@ -407,12 +430,20 @@ function checkRouteMatch(routePolyline, pickupLat, pickupLng, dropoffLat, dropof
 }
 
 app.post('/api/signup', (req, res) => {
-    console.log('Received signup request:', req.body);
-    const { name, email, password } = req.body;
+    const name = sanitizeString(req.body.name);
+    const email = sanitizeString(req.body.email);
+    const password = req.body.password;
 
     if (!name || !email || !password) {
-        console.log('Validation failed: Missing fields');
         return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address' });
+    }
+
+    if (password.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -485,23 +516,33 @@ app.post('/api/verify-otp', (req, res) => {
 });
 
 app.post('/api/login', (req, res) => {
-    const { email, password } = req.body;
+    const email = sanitizeString(req.body.email);
+    const password = req.body.password;
 
     if (!email || !password) {
         return res.status(400).json({ message: 'Email and password are required' });
     }
 
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
     const sql = `SELECT * FROM users WHERE email = ?`;
     db.get(sql, [email], (err, user) => {
         if (err) {
-            return res.status(500).json({ message: 'Error querying database' });
+            return res.status(500).json({ message: 'An error occurred. Please try again.' });
         }
         if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+            // Don't reveal whether the email exists - use generic message
+            return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        bcrypt.compare(password, user.password, (err, result) => {
-            if (err || !result) {
+        bcrypt.compare(password, user.password, (bcryptErr, result) => {
+            if (bcryptErr) {
+                console.error('bcrypt comparison error:', bcryptErr);
+                return res.status(500).json({ message: 'An error occurred. Please try again.' });
+            }
+            if (!result) {
                 return res.status(401).json({ message: 'Invalid credentials' });
             }
 
@@ -563,11 +604,17 @@ function requireAuth(req, res, next) {
 
 // Create a new trip (driver offering a ride)
 app.post('/api/trips', requireAuth, (req, res) => {
-    const { start_location, end_location, start_lat, start_lng, end_lat, end_lng,
+    const start_location = sanitizeString(req.body.start_location);
+    const end_location = sanitizeString(req.body.end_location);
+    const { start_lat, start_lng, end_lat, end_lng,
         route_polyline, distance_km, duration_minutes, departure_time } = req.body;
 
     if (!start_location || !end_location || !start_lat || !start_lng || !end_lat || !end_lng) {
         return res.status(400).json({ message: 'Missing required location data' });
+    }
+
+    if (!isValidCoordinate(start_lat, start_lng) || !isValidCoordinate(end_lat, end_lng)) {
+        return res.status(400).json({ message: 'Invalid coordinate values' });
     }
 
     // First check if the driver already has an active trip
@@ -876,12 +923,18 @@ app.put('/api/trips/:id/cancel', requireAuth, (req, res) => {
 
 // Create a ride request (passenger looking for ride)
 app.post('/api/ride-requests', requireAuth, (req, res) => {
-    const { pickup_location, dropoff_location, pickup_lat, pickup_lng,
+    const pickup_location = sanitizeString(req.body.pickup_location);
+    const dropoff_location = sanitizeString(req.body.dropoff_location);
+    const { pickup_lat, pickup_lng,
         dropoff_lat, dropoff_lng, requested_time } = req.body;
 
     if (!pickup_location || !dropoff_location || !pickup_lat || !pickup_lng ||
         !dropoff_lat || !dropoff_lng) {
         return res.status(400).json({ message: 'Missing required location data' });
+    }
+
+    if (!isValidCoordinate(pickup_lat, pickup_lng) || !isValidCoordinate(dropoff_lat, dropoff_lng)) {
+        return res.status(400).json({ message: 'Invalid coordinate values' });
     }
 
     const sql = `INSERT INTO ride_requests (passenger_id, pickup_location, dropoff_location, 
@@ -908,6 +961,10 @@ app.get('/api/available-drivers', requireAuth, (req, res) => {
 
     if (!pickup_lat || !pickup_lng || !dropoff_lat || !dropoff_lng) {
         return res.status(400).json({ message: 'Missing location parameters' });
+    }
+
+    if (!isValidCoordinate(pickup_lat, pickup_lng) || !isValidCoordinate(dropoff_lat, dropoff_lng)) {
+        return res.status(400).json({ message: 'Invalid coordinate values' });
     }
 
     // Calculate dynamic threshold based on distance
@@ -1246,4 +1303,7 @@ server.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
     console.log(`WebSocket server ready for real-time notifications`);
     console.log(`Cost sharing API ready at /api/cost-sharing/calculate`);
+    if (!process.env.RESEND_API_KEY) {
+        console.warn('⚠️  WARNING: RESEND_API_KEY not set. OTP emails will fail.');
+    }
 });

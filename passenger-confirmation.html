@@ -2333,10 +2333,10 @@
         window.selectRealDriver = selectRealDriver;
     </script>
 
-    <!-- Google Maps API - DISABLED for demo mode -->
+    <!-- Google Maps API - Requires proper API key configuration -->
     <!--
     <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFYLT473lC55zLeTyL0Njnh0xOWJIIQ_s&libraries=places&callback=initializeApp"></script>
+        src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places&callback=initializeApp"></script>
     -->
 
     <!-- Initialize without Google Maps for demo mode -->
@@ -2392,10 +2392,12 @@
                 `;
             }
 
-            // Show map fallback
+            // Show map fallback (escape user inputs to prevent XSS)
             var mapEl = document.getElementById('map');
             if (mapEl) {
-                mapEl.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); color: white; text-align: center;"><div style="font-size: 64px; margin-bottom: 20px;">🗺️</div><h3 style="font-size: 24px; margin-bottom: 16px;">Map Unavailable</h3><p style="font-size: 14px; color: rgba(255,255,255,0.7);">Demo mode - Route from ' + startLocation + ' to ' + endLocation + '</p></div>';
+                var safeStart = startLocation.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                var safeEnd = endLocation.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                mapEl.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); color: white; text-align: center;"><div style="font-size: 64px; margin-bottom: 20px;">🗺️</div><h3 style="font-size: 24px; margin-bottom: 16px;">Map Unavailable</h3><p style="font-size: 14px; color: rgba(255,255,255,0.7);">Route from ' + safeStart + ' to ' + safeEnd + '</p></div>';
             }
 
             console.log('Passenger confirmation initialized in demo mode');

@@ -3,7 +3,6 @@
  * Provides offline support and caching for PWA functionality
  */
 
-const CACHE_NAME = 'ridemate-v1';
 const STATIC_CACHE = 'ridemate-static-v1';
 const DYNAMIC_CACHE = 'ridemate-dynamic-v1';
 
@@ -33,7 +32,7 @@ const NETWORK_ONLY = [
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
     console.log('[ServiceWorker] Installing...');
-    
+
     event.waitUntil(
         caches.open(STATIC_CACHE)
             .then((cache) => {
@@ -53,15 +52,15 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
     console.log('[ServiceWorker] Activating...');
-    
+
     event.waitUntil(
         caches.keys()
             .then((cacheNames) => {
                 return Promise.all(
                     cacheNames
                         .filter((cacheName) => {
-                            return cacheName !== STATIC_CACHE && 
-                                   cacheName !== DYNAMIC_CACHE;
+                            return cacheName !== STATIC_CACHE &&
+                                cacheName !== DYNAMIC_CACHE;
                         })
                         .map((cacheName) => {
                             console.log('[ServiceWorker] Deleting old cache:', cacheName);
@@ -79,12 +78,12 @@ self.addEventListener('activate', (event) => {
 // Fetch event - serve from cache, fall back to network
 self.addEventListener('fetch', (event) => {
     const requestUrl = new URL(event.request.url);
-    
+
     // Skip non-GET requests
     if (event.request.method !== 'GET') {
         return;
     }
-    
+
     // Network-only for API calls and WebSocket
     if (NETWORK_ONLY.some(path => requestUrl.pathname.startsWith(path))) {
         event.respondWith(
@@ -93,7 +92,7 @@ self.addEventListener('fetch', (event) => {
                     // Return offline response for API calls
                     return new Response(
                         JSON.stringify({ error: 'You are offline' }),
-                        { 
+                        {
                             status: 503,
                             headers: { 'Content-Type': 'application/json' }
                         }
@@ -102,7 +101,7 @@ self.addEventListener('fetch', (event) => {
         );
         return;
     }
-    
+
     // For Google Maps and external resources - network first with cache fallback
     if (requestUrl.origin !== location.origin) {
         event.respondWith(
@@ -112,19 +111,19 @@ self.addEventListener('fetch', (event) => {
                     if (!response || response.status !== 200) {
                         return response;
                     }
-                    
+
                     // Clone and cache the response
                     const responseClone = response.clone();
                     caches.open(DYNAMIC_CACHE)
                         .then((cache) => cache.put(event.request, responseClone));
-                    
+
                     return response;
                 })
                 .catch(() => caches.match(event.request))
         );
         return;
     }
-    
+
     // For same-origin requests - cache first, then network
     event.respondWith(
         caches.match(event.request)
@@ -138,11 +137,11 @@ self.addEventListener('fetch', (event) => {
                                     .then((cache) => cache.put(event.request, networkResponse));
                             }
                         })
-                        .catch(() => {});
-                    
+                        .catch(() => { });
+
                     return cachedResponse;
                 }
-                
+
                 // Not in cache - fetch from network
                 return fetch(event.request)
                     .then((networkResponse) => {
@@ -167,7 +166,7 @@ self.addEventListener('fetch', (event) => {
 // Push notification event (for future implementation)
 self.addEventListener('push', (event) => {
     console.log('[ServiceWorker] Push received');
-    
+
     const options = {
         body: event.data ? event.data.text() : 'New notification from RideMate',
         icon: '/icons/icon-192x192.png',
@@ -182,7 +181,7 @@ self.addEventListener('push', (event) => {
             { action: 'dismiss', title: 'Dismiss' }
         ]
     };
-    
+
     event.waitUntil(
         self.registration.showNotification('RideMate', options)
     );
@@ -192,7 +191,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
     console.log('[ServiceWorker] Notification clicked');
     event.notification.close();
-    
+
     if (event.action === 'view') {
         event.waitUntil(
             clients.openWindow('/')
@@ -203,7 +202,7 @@ self.addEventListener('notificationclick', (event) => {
 // Background sync (for offline ride requests)
 self.addEventListener('sync', (event) => {
     console.log('[ServiceWorker] Sync event:', event.tag);
-    
+
     if (event.tag === 'sync-ride-requests') {
         event.waitUntil(syncRideRequests());
     }
@@ -213,7 +212,7 @@ self.addEventListener('sync', (event) => {
 async function syncRideRequests() {
     try {
         const pendingRequests = await getPendingRequests();
-        
+
         for (const request of pendingRequests) {
             await fetch('/api/ride-requests', {
                 method: 'POST',
@@ -221,7 +220,7 @@ async function syncRideRequests() {
                 body: JSON.stringify(request)
             });
         }
-        
+
         await clearPendingRequests();
     } catch (error) {
         console.error('[ServiceWorker] Sync failed:', error);

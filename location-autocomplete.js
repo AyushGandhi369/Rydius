@@ -151,16 +151,19 @@ function setupAutocomplete(input, suggestionsContainer) {
         if (matches.length === 0) {
             suggestionsContainer.innerHTML = '<div style="padding: 15px; color: #888; text-align: center;">No locations found</div>';
         } else {
-            suggestionsContainer.innerHTML = matches.map(loc => `
-                <div class="suggestion-item" data-value="${loc}" style="
+            suggestionsContainer.innerHTML = matches.map(loc => {
+                const safeLoc = loc.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return `
+                <div class="suggestion-item" data-value="${safeLoc}" style="
                     padding: 12px 16px;
                     cursor: pointer;
                     border-bottom: 1px solid #f0f0f0;
                     transition: background 0.15s;
                 ">
-                    📍 ${loc}
+                    📍 ${safeLoc}
                 </div>
-            `).join('');
+            `;
+            }).join('');
 
             // Add click handlers to each suggestion
             suggestionsContainer.querySelectorAll('.suggestion-item').forEach(item => {
