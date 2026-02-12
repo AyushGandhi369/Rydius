@@ -1049,8 +1049,8 @@
     <script>
         // Global variables for map and route
         let map;
-        let directionsService;
-        let directionsRenderer;
+        let olaMaps;
+        let OLA_MAPS_API_KEY = '';
         let startLocation;
         let endLocation;
         let driverMarkers = [];
@@ -1064,23 +1064,60 @@
         let actualDropoffMarker = null;
         let dropoffPathLine = null;
         let hoveredDriverId = null;
-        let driversData = []; // Store driver data for hover functionality
-        let driverRouteLine = null; // Store the driver's route polyline
-        let routeInfoWindow = null; // Store route info window
-        let selectedDriverData = null; // Store selected driver data
-        let driverRouteMarkers = []; // Store markers for driver route
-        let googleMapsAvailable = false; // Track if Google Maps is working
+        let driversData = [];
+        let driverRouteLine = null;
+        let routeInfoPopup = null;
+        let selectedDriverData = null;
+        let driverRouteMarkers = [];
+        let olaMapsAvailable = false;
+        let routeSourceCounter = 0; // Unique IDs for map sources
 
-        // Handle Google Maps API authentication failures
-        window.gm_authFailure = function () {
-            console.error('Google Maps API authentication failed - billing may not be enabled');
-            showMapFallback('Google Maps API key issue. Please enable billing in Google Cloud Console.');
-        };
+        // Helper: Decode encoded polyline to [lng, lat] for GeoJSON
+        function decodePolyline(encoded) {
+            const points = [];
+            let index = 0, lat = 0, lng = 0;
+            while (index < encoded.length) {
+                let b, shift = 0, result = 0;
+                do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
+                shift = 0; result = 0;
+                do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                lng += ((result & 1) ? ~(result >> 1) : (result >> 1));
+                points.push([lng / 1e5, lat / 1e5]);
+            }
+            return points;
+        }
 
-        // Handle Google Maps loading errors
+        // Helper: Geocode location name to coords via Ola Autocomplete
+        async function geocodeLocationName(locationName) {
+            try {
+                const url = `https://api.olamaps.io/places/v1/autocomplete?input=${encodeURIComponent(locationName)}&api_key=${OLA_MAPS_API_KEY}`;
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.predictions && data.predictions.length > 0) {
+                    const place = data.predictions[0];
+                    if (place.geometry && place.geometry.location) {
+                        return { lat: place.geometry.location.lat, lng: place.geometry.location.lng };
+                    }
+                }
+            } catch (e) { console.error('Geocode error:', e); }
+            return null;
+        }
+
+        // Helper: Reverse geocode coords to address via Ola API
+        async function reverseGeocode(lat, lng) {
+            try {
+                const resp = await fetch(`https://api.olamaps.io/places/v1/reverse-geocode?latlng=${lat},${lng}&api_key=${OLA_MAPS_API_KEY}`);
+                const data = await resp.json();
+                if (data.results && data.results.length > 0) return data.results[0].formatted_address;
+            } catch (e) { console.error('Reverse geocode error:', e); }
+            return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        }
+
+        // Handle Ola Maps loading errors
         window.addEventListener('error', function (e) {
-            if (e.message && (e.message.includes('Google') || e.target && e.target.src && e.target.src.includes('maps.googleapis.com'))) {
-                showMapFallback('Unable to load Google Maps. The app will continue with limited functionality.');
+            if (e.message && (e.message.includes('OlaMaps') || e.message.includes('maplibregl'))) {
+                showMapFallback('Unable to load Ola Maps. The app will continue with limited functionality.');
             }
         }, true);
 
@@ -1110,7 +1147,7 @@
             initializeAppWithoutMap();
         }
 
-        // Initialize app when Google Maps isn't available
+        // Initialize app when Ola Maps isn't available
         function initializeAppWithoutMap() {
             const urlParams = new URLSearchParams(window.location.search);
             startLocation = urlParams.get('start') || localStorage.getItem('startLocation') || 'Ahmedabad';
@@ -1127,26 +1164,25 @@
             checkAuthAndCreateRequest();
         }
 
-        // This function will be called by Google Maps API when it loads
-        function initializeApp() {
-            googleMapsAvailable = true;
-            console.log('Initializing RideMate Passenger app...');
+        // Initialize the app with Ola Maps
+        async function initializeApp() {
+            console.log('Initializing RideMate Passenger app with Ola Maps...');
+
+            try {
+                const configResp = await fetch('/api/config');
+                const config = await configResp.json();
+                OLA_MAPS_API_KEY = config.olaMapsApiKey || '';
+            } catch (e) { console.error('Could not fetch config:', e); }
 
             const urlParams = new URLSearchParams(window.location.search);
             startLocation = urlParams.get('start') || localStorage.getItem('startLocation') || 'Ahmedabad';
             endLocation = urlParams.get('end') || localStorage.getItem('endLocation') || 'Gandhinagar';
 
-            // Update UI with locations
             document.getElementById('start-location').textContent = startLocation;
             document.getElementById('end-location').textContent = endLocation;
 
-            // Initialize Google Maps
             initMap();
-
-            // Setup event handlers
             setupEventHandlers();
-
-            // Check authentication
             checkAuthAndCreateRequest();
         }
 
@@ -1171,11 +1207,11 @@
 
         // Simple DOM ready check
         document.addEventListener('DOMContentLoaded', function () {
-            console.log('DOM ready, waiting for Google Maps...');
+            console.log('DOM ready, initializing Ola Maps...');
         });
 
         function initMap() {
-            console.log('Initializing Google Maps...');
+            console.log('Initializing Ola Maps...');
 
             const mapElement = document.getElementById('map');
             if (!mapElement) {
@@ -1183,60 +1219,39 @@
                 return;
             }
 
+            if (!OLA_MAPS_API_KEY || OLA_MAPS_API_KEY === 'your_ola_maps_api_key_here') {
+                console.warn('Ola Maps API key not configured');
+                showMapFallback('Ola Maps API key not configured. Please set OLA_MAPS_API_KEY in .env');
+                return;
+            }
+
             try {
-                map = new google.maps.Map(mapElement, {
-                    zoom: 13,
-                    center: { lat: 23.0225, lng: 72.5714 }, // Default center
-                    styles: [
-                        // Modern map styling
-                        { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
-                        { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-                        { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
-
-                        // Roads styling
-                        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-                        { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
-                        { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
-                        { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-
-                        // Points of interest
-                        { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
-                        { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-
-                        // Water and administrative
-                        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
-                        { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-                    ],
-                    mapTypeControl: true,
-                    streetViewControl: true,
-                    fullscreenControl: true,
-                    zoomControl: true
+                olaMaps = new OlaMapsSDK.OlaMaps({
+                    apiKey: OLA_MAPS_API_KEY
                 });
 
-                // Initialize directions service and renderer
-                directionsService = new google.maps.DirectionsService();
-                directionsRenderer = new google.maps.DirectionsRenderer({
-                    map: map,
-                    suppressMarkers: true,
-                    polylineOptions: {
-                        strokeColor: '#2196f3',
-                        strokeWeight: 5,
-                        strokeOpacity: 1.0
-                    }
+                map = olaMaps.init({
+                    style: 'https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json',
+                    container: 'map',
+                    center: [72.5714, 23.0225],
+                    zoom: 13
                 });
 
-                console.log('Map initialized successfully');
+                olaMapsAvailable = true;
 
-                // Calculate and display route
-                calculateRoute();
+                map.on('load', () => {
+                    console.log('Ola Map initialized successfully');
+                    calculateRoute();
+                });
 
             } catch (error) {
                 console.error('Error initializing map:', error);
                 updateStatusIndicator('Error loading map', 'error');
+                showMapFallback('Error initializing Ola Maps: ' + error.message);
             }
         }
 
-        function calculateRoute() {
+        async function calculateRoute() {
             if (!startLocation || !endLocation) {
                 console.error('Start or end location is missing.');
                 updateStatusIndicator('Could not calculate route. Please try again.', 'error');
@@ -1245,117 +1260,105 @@
 
             console.log('Calculating route from', startLocation, 'to', endLocation);
 
-            const request = {
-                origin: startLocation,
-                destination: endLocation,
-                travelMode: google.maps.TravelMode.DRIVING,
-                avoidTolls: false,
-                avoidHighways: false,
-                region: 'IN' // India
-            };
+            try {
+                const startCoords = await geocodeLocationName(startLocation);
+                const endCoords = await geocodeLocationName(endLocation);
 
-            directionsService.route(request, async (result, status) => {
-                if (status === 'OK') {
-                    console.log('Route calculated successfully:', result);
-                    directionsRenderer.setDirections(result);
-
-                    // Store the route for matching calculations
-                    passengerRoute = result.routes[0];
-
-                    // Extract route information
-                    const route = result.routes[0];
-                    if (!route || !route.legs || route.legs.length === 0) {
-                        console.error('No legs found in route result.');
-                        return;
-                    }
-                    const leg = route.legs[0];
-
-                    // Store coordinates and distance
-                    pickupCoords = {
-                        lat: leg.start_location.lat(),
-                        lng: leg.start_location.lng()
-                    };
-                    dropoffCoords = {
-                        lat: leg.end_location.lat(),
-                        lng: leg.end_location.lng()
-                    };
-                    routeDistance = leg.distance.value / 1000; // Convert to km
-                    routeDuration = Math.round(leg.duration.value / 60); // Convert to minutes
-
-                    // Update route info overlay
-                    document.getElementById('route-distance').textContent = leg.distance.text;
-                    document.getElementById('route-duration').textContent = leg.duration.text;
-
-                    // Fetch smart cost sharing from API
-                    fetchCostSharing(routeDistance);
-
-                    // Add custom markers for start and end points
-                    createMarker(leg.start_location, 'Your Location', 'passenger-start');
-                    createMarker(leg.end_location, 'Destination', 'passenger-end');
-
-                    // Create ride request in database
-                    await createRideRequest();
-
-                    // Find real drivers
-                    if (currentRequestId) {
-                        findAvailableDrivers();
-                    }
-
-                } else {
-                    console.error('Directions request failed due to ' + status);
-                    updateStatusIndicator(`Error: ${status}. Please check locations.`, 'error');
+                if (!startCoords || !endCoords) {
+                    console.error('Could not geocode locations');
+                    updateStatusIndicator('Could not find locations. Please try again.', 'error');
+                    return;
                 }
-            });
-        }
 
-        function calculateDynamicThreshold(distanceInMeters) {
-            // Dynamic threshold calculation
-            // Base: 200m for trips under 5km
-            // Scales up to 2km for trips over 100km
-            const distanceInKm = distanceInMeters / 1000;
+                const dirUrl = `https://api.olamaps.io/routing/v1/directions?origin=${startCoords.lat},${startCoords.lng}&destination=${endCoords.lat},${endCoords.lng}&api_key=${OLA_MAPS_API_KEY}`;
+                const response = await fetch(dirUrl);
+                const data = await response.json();
 
-            if (distanceInKm <= 5) {
-                return 200; // 200 meters
-            } else if (distanceInKm <= 20) {
-                return 200 + (distanceInKm - 5) * 40; // Gradual increase
-            } else if (distanceInKm <= 50) {
-                return 800 + (distanceInKm - 20) * 20; // Slower increase
-            } else if (distanceInKm <= 100) {
-                return 1400 + (distanceInKm - 50) * 12; // Even slower
-            } else {
-                return 2000; // Max 2km threshold
+                if (!data.routes || data.routes.length === 0) {
+                    console.error('No routes found');
+                    updateStatusIndicator('No route found between locations.', 'error');
+                    return;
+                }
+
+                const route = data.routes[0];
+                const leg = route.legs[0];
+                const encodedPolyline = route.overview_polyline || route.geometry;
+                const routeCoords = decodePolyline(encodedPolyline);
+
+                passengerRoute = { overview_polyline: encodedPolyline, routeCoords: routeCoords };
+
+                // Draw route on map
+                if (map.getSource('passenger-route')) {
+                    map.getSource('passenger-route').setData({
+                        type: 'Feature',
+                        geometry: { type: 'LineString', coordinates: routeCoords }
+                    });
+                } else {
+                    map.addSource('passenger-route', {
+                        type: 'geojson',
+                        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: routeCoords } }
+                    });
+                    map.addLayer({
+                        id: 'passenger-route-line',
+                        type: 'line',
+                        source: 'passenger-route',
+                        layout: { 'line-join': 'round', 'line-cap': 'round' },
+                        paint: { 'line-color': '#2196f3', 'line-width': 5, 'line-opacity': 1.0 }
+                    });
+                }
+
+                pickupCoords = startCoords;
+                dropoffCoords = endCoords;
+                routeDistance = leg.distance / 1000;
+                routeDuration = Math.round(leg.duration / 60);
+
+                document.getElementById('route-distance').textContent = routeDistance.toFixed(1) + ' km';
+                document.getElementById('route-duration').textContent = routeDuration + ' mins';
+
+                fetchCostSharing(routeDistance);
+
+                createMarker(startCoords, 'Your Location', 'passenger-start');
+                createMarker(endCoords, 'Destination', 'passenger-end');
+
+                // Fit map to route bounds
+                const bounds = new maplibregl.LngLatBounds();
+                routeCoords.forEach(coord => bounds.extend(coord));
+                map.fitBounds(bounds, { padding: 60 });
+
+                await createRideRequest();
+
+                if (currentRequestId) {
+                    findAvailableDrivers();
+                }
+
+            } catch (error) {
+                console.error('Directions request failed:', error);
+                updateStatusIndicator('Error calculating route. Please try again.', 'error');
             }
         }
 
         function createMarker(position, title, type) {
-            let iconUrl;
+            if (!map || !olaMapsAvailable) return null;
+            const el = document.createElement('div');
             if (type === 'passenger-start') {
-                iconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="20" cy="20" r="18" fill="#4CAF50" stroke="white" stroke-width="4"/>
-                        <circle cx="20" cy="20" r="8" fill="white"/>
-                    </svg>
-                `);
+                el.innerHTML = `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" fill="#4CAF50" stroke="white" stroke-width="4"/>
+                    <circle cx="20" cy="20" r="8" fill="white"/>
+                </svg>`;
             } else if (type === 'passenger-end') {
-                iconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M20 0C12 0 5 7 5 15C5 25 20 40 20 40S35 25 35 15C35 7 28 0 20 0Z" fill="#f44336" stroke="white" stroke-width="2"/>
-                        <circle cx="20" cy="15" r="6" fill="white"/>
-                    </svg>
-                `);
+                el.innerHTML = `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 0C12 0 5 7 5 15C5 25 20 40 20 40S35 25 35 15C35 7 28 0 20 0Z" fill="#f44336" stroke="white" stroke-width="2"/>
+                    <circle cx="20" cy="15" r="6" fill="white"/>
+                </svg>`;
+            } else {
+                el.style.cssText = 'width:20px;height:20px;border-radius:50%;background:#1a73e8;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
             }
+            el.style.cursor = 'pointer';
+            el.title = title;
 
-            const marker = new google.maps.Marker({
-                position: position,
-                map: map,
-                title: title,
-                icon: {
-                    url: iconUrl,
-                    scaledSize: new google.maps.Size(40, 40),
-                    anchor: new google.maps.Point(20, 40)
-                },
-                animation: google.maps.Animation.DROP
-            });
+            const marker = new maplibregl.Marker({ element: el })
+                .setLngLat([position.lng, position.lat])
+                .addTo(map);
             return marker;
         }
 
@@ -1576,69 +1579,41 @@
         }
 
         function generateDriverDestination(driverPos, passengerDest) {
-            // Generate a destination that's in the general direction but not exact
-            const latDiff = passengerDest.lat() - driverPos.lat();
-            const lngDiff = passengerDest.lng() - driverPos.lng();
-
-            // Add random variation (20-40% different from passenger destination)
+            const dLat = (typeof passengerDest.lat === 'function' ? passengerDest.lat() : passengerDest.lat);
+            const dLng = (typeof passengerDest.lng === 'function' ? passengerDest.lng() : passengerDest.lng);
+            const sLat = (typeof driverPos.lat === 'function' ? driverPos.lat() : driverPos.lat);
+            const sLng = (typeof driverPos.lng === 'function' ? driverPos.lng() : driverPos.lng);
+            const latDiff = dLat - sLat;
+            const lngDiff = dLng - sLng;
             const variation = 0.2 + Math.random() * 0.2;
-            const angle = Math.random() * Math.PI / 3 - Math.PI / 6; // ±30 degrees
-
-            const newLatDiff = latDiff * (1 + variation) * Math.cos(angle);
-            const newLngDiff = lngDiff * (1 + variation) * Math.sin(angle);
-
+            const angle = Math.random() * Math.PI / 3 - Math.PI / 6;
             return {
-                lat: driverPos.lat() + newLatDiff,
-                lng: driverPos.lng() + newLngDiff
+                lat: sLat + latDiff * (1 + variation) * Math.cos(angle),
+                lng: sLng + lngDiff * (1 + variation) * Math.sin(angle)
             };
         }
 
         function createDriverMarker(driver) {
-            const marker = new google.maps.Marker({
-                position: driver.position,
-                map: map,
-                title: driver.name,
-                icon: {
-                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <g filter="url(#shadow)">
-                                <rect x="8" y="16" width="32" height="20" rx="4" fill="#1976d2"/>
-                                <rect x="12" y="12" width="24" height="16" rx="2" fill="#2196f3"/>
-                                <rect x="16" y="20" width="4" height="4" fill="white"/>
-                                <rect x="28" y="20" width="4" height="4" fill="white"/>
-                                <rect x="10" y="32" width="6" height="4" rx="2" fill="#333"/>
-                                <rect x="32" y="32" width="6" height="4" rx="2" fill="#333"/>
-                            </g>
-                            <defs>
-                                <filter id="shadow">
-                                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
-                                </filter>
-                            </defs>
-                        </svg>
-                    `),
-                    scaledSize: new google.maps.Size(48, 48),
-                    anchor: new google.maps.Point(24, 24)
-                },
-                animation: google.maps.Animation.DROP
-            });
+            if (!map || !olaMapsAvailable) return null;
+            const el = document.createElement('div');
+            el.innerHTML = `<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g><rect x="8" y="16" width="32" height="20" rx="4" fill="#1976d2"/>
+                <rect x="12" y="12" width="24" height="16" rx="2" fill="#2196f3"/>
+                <rect x="16" y="20" width="4" height="4" fill="white"/>
+                <rect x="28" y="20" width="4" height="4" fill="white"/>
+                <rect x="10" y="32" width="6" height="4" rx="2" fill="#333"/>
+                <rect x="32" y="32" width="6" height="4" rx="2" fill="#333"/></g>
+            </svg>`;
+            el.style.cursor = 'pointer';
+            el.title = driver.name;
+
+            const marker = new maplibregl.Marker({ element: el })
+                .setLngLat([driver.position.lng, driver.position.lat])
+                .addTo(map);
 
             marker.driverId = driver.id;
+            marker.getElement().addEventListener('click', () => selectDriver(driver.id));
             driverMarkers.push(marker);
-
-            // Add click listener
-            marker.addListener('click', () => {
-                selectDriver(driver.id);
-            });
-
-            // Add hover effect
-            marker.addListener('mouseover', () => {
-                marker.setAnimation(google.maps.Animation.BOUNCE);
-            });
-
-            marker.addListener('mouseout', () => {
-                marker.setAnimation(null);
-            });
-
             return marker;
         }
 
@@ -1803,11 +1778,13 @@
 
             // Highlight marker on map
             driverMarkers.forEach(marker => {
+                const el = marker.getElement();
                 if (marker.driverId === driverId) {
-                    marker.setAnimation(google.maps.Animation.BOUNCE);
-                    setTimeout(() => marker.setAnimation(null), 2000);
+                    el.style.transform = 'scale(1.3)';
+                    el.style.transition = 'transform 0.3s ease';
+                    setTimeout(() => { el.style.transform = 'scale(1)'; }, 2000);
                 } else {
-                    marker.setAnimation(null);
+                    el.style.transform = 'scale(1)';
                 }
             });
 
@@ -1881,11 +1858,13 @@
 
             // Highlight marker on map
             driverMarkers.forEach(marker => {
+                const el = marker.getElement();
                 if (marker.driverId === driverId) {
-                    marker.setAnimation(google.maps.Animation.BOUNCE);
-                    setTimeout(() => marker.setAnimation(null), 2000);
+                    el.style.transform = 'scale(1.3)';
+                    el.style.transition = 'transform 0.3s ease';
+                    setTimeout(() => { el.style.transform = 'scale(1)'; }, 2000);
                 } else {
-                    marker.setAnimation(null);
+                    el.style.transform = 'scale(1)';
                 }
             });
 
@@ -1971,71 +1950,62 @@
 
             // Only show actual dropoff marker for partial rides
             if (driver.is_partial_ride) {
-                // Remove any existing marker
                 hideActualDropoffLocation();
 
-                // Create orange dot marker for actual drop-off location
-                const orangeDotIcon = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="12" r="10" fill="#ff6b00" stroke="white" stroke-width="2"/>
-                        <circle cx="12" cy="12" r="4" fill="white" opacity="0.8"/>
-                    </svg>
-                `);
+                const el = document.createElement('div');
+                el.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" fill="#ff6b00" stroke="white" stroke-width="2"/>
+                    <circle cx="12" cy="12" r="4" fill="white" opacity="0.8"/>
+                </svg>`;
 
-                actualDropoffMarker = new google.maps.Marker({
-                    position: {
-                        lat: driver.actual_dropoff_lat,
-                        lng: driver.actual_dropoff_lng
-                    },
-                    map: map,
-                    title: 'Driver will drop you here',
-                    icon: {
-                        url: orangeDotIcon,
-                        scaledSize: new google.maps.Size(24, 24),
-                        anchor: new google.maps.Point(12, 12)
-                    }
-                });
+                actualDropoffMarker = new maplibregl.Marker({ element: el })
+                    .setLngLat([driver.actual_dropoff_lng, driver.actual_dropoff_lat])
+                    .addTo(map);
 
-                // Draw dotted line from actual drop-off to final destination
-                const lineSymbol = {
-                    path: 'M 0,-1 0,1',
-                    strokeOpacity: 1,
-                    scale: 4
-                };
+                // Draw dotted line from actual drop-off to final destination using a dashed GeoJSON line
+                const dropoffLineId = 'dropoff-path-line';
+                if (!map.getSource(dropoffLineId)) {
+                    map.addSource(dropoffLineId, {
+                        type: 'geojson',
+                        data: {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'LineString', coordinates: [
+                                    [driver.actual_dropoff_lng, driver.actual_dropoff_lat],
+                                    [dropoffCoords.lng, dropoffCoords.lat]
+                                ]
+                            }
+                        }
+                    });
+                    map.addLayer({
+                        id: dropoffLineId,
+                        type: 'line',
+                        source: dropoffLineId,
+                        paint: { 'line-color': '#ff6b00', 'line-width': 3, 'line-dasharray': [4, 4] }
+                    });
+                } else {
+                    map.getSource(dropoffLineId).setData({
+                        type: 'Feature',
+                        geometry: {
+                            type: 'LineString', coordinates: [
+                                [driver.actual_dropoff_lng, driver.actual_dropoff_lat],
+                                [dropoffCoords.lng, dropoffCoords.lat]
+                            ]
+                        }
+                    });
+                }
+                dropoffPathLine = dropoffLineId;
 
-                dropoffPathLine = new google.maps.Polyline({
-                    path: [
-                        { lat: driver.actual_dropoff_lat, lng: driver.actual_dropoff_lng },
-                        { lat: dropoffCoords.lat, lng: dropoffCoords.lng }
-                    ],
-                    strokeOpacity: 0,
-                    icons: [{
-                        icon: lineSymbol,
-                        offset: '0',
-                        repeat: '20px'
-                    }],
-                    strokeColor: '#ff6b00',
-                    map: map
-                });
-
-                // Update the hover text for partial rides
                 const card = document.querySelector(`[data-driver-id="${driverId}"]`);
                 if (card) {
                     const dropoffAddress = card.querySelector('.location-item:last-child .location-address');
                     if (dropoffAddress) {
-                        // Store the current address text
                         dropoffAddress.dataset.originalText = dropoffAddress.textContent;
-                        // Show hover indicator with actual location
-                        const geocoder = new google.maps.Geocoder();
-                        const latlng = { lat: driver.actual_dropoff_lat, lng: driver.actual_dropoff_lng };
-
-                        geocoder.geocode({ location: latlng }, (results, status) => {
-                            if (status === 'OK' && results[0]) {
-                                const actualLocation = getLocationName(results[0].formatted_address);
-                                dropoffAddress.innerHTML = `<span style="color: #ff6b00;">⬇ ${actualLocation} (showing on map)</span>`;
-                            } else {
-                                dropoffAddress.innerHTML = `<span style="color: #ff6b00;">⬇ Actual drop-off point (showing on map)</span>`;
-                            }
+                        reverseGeocode(driver.actual_dropoff_lat, driver.actual_dropoff_lng).then(addr => {
+                            const actualLocation = getLocationName(addr);
+                            dropoffAddress.innerHTML = `<span style="color: #ff6b00;">⬇ ${actualLocation} (showing on map)</span>`;
+                        }).catch(() => {
+                            dropoffAddress.innerHTML = `<span style="color: #ff6b00;">⬇ Actual drop-off point (showing on map)</span>`;
                         });
                     }
                 }
@@ -2047,12 +2017,13 @@
         // Function to hide actual drop-off location
         function hideActualDropoffLocation() {
             if (actualDropoffMarker) {
-                actualDropoffMarker.setMap(null);
+                actualDropoffMarker.remove();
                 actualDropoffMarker = null;
             }
 
-            if (dropoffPathLine) {
-                dropoffPathLine.setMap(null);
+            if (dropoffPathLine && map.getLayer(dropoffPathLine)) {
+                map.removeLayer(dropoffPathLine);
+                map.removeSource(dropoffPathLine);
                 dropoffPathLine = null;
             }
 
@@ -2077,43 +2048,32 @@
         }
 
         // Function to geocode drop-off location for partial rides
-        function geocodeDropoffLocation(lat, lng, elementId) {
-            const geocoder = new google.maps.Geocoder();
-            const latlng = { lat: lat, lng: lng };
-
-            geocoder.geocode({ location: latlng }, (results, status) => {
-                if (status === 'OK' && results[0]) {
-                    // Get the formatted address
-                    const address = results[0].formatted_address;
-                    // Update the element with the geocoded address
-                    const element = document.getElementById(elementId);
-                    if (element) {
-                        element.textContent = getLocationName(address);
-                    }
-                } else {
-                    console.error('Geocode failed:', status);
-                    // Fallback to showing coordinates
-                    const element = document.getElementById(elementId);
-                    if (element) {
-                        element.textContent = `Near ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-                    }
+        async function geocodeDropoffLocation(lat, lng, elementId) {
+            try {
+                const address = await reverseGeocode(lat, lng);
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = getLocationName(address);
                 }
-            });
+            } catch (e) {
+                console.error('Geocode failed:', e);
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = `Near ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                }
+            }
         }
 
         // Function to show driver's route
         async function showDriverRoute(driver) {
             try {
-                // Clear any existing driver route
                 clearDriverRoute();
 
-                // Always pass the passenger's destination coordinates to the backend
-                // The backend will determine the actual drop-off point using the matching algorithm
                 const params = new URLSearchParams({
                     pickup_lat: pickupCoords.lat,
                     pickup_lng: pickupCoords.lng,
-                    dropoff_lat: dropoffCoords.lat,  // Always use passenger's destination
-                    dropoff_lng: dropoffCoords.lng   // Backend will calculate actual drop-off
+                    dropoff_lat: dropoffCoords.lat,
+                    dropoff_lng: dropoffCoords.lng
                 });
 
                 const response = await fetch(`/api/trips/${driver.id}/route-segment?${params}`, {
@@ -2128,176 +2088,92 @@
                 const data = await response.json();
                 console.log('Route segment data:', data);
 
-                // Create the driver's route polyline
                 if (data.routeSegment && data.routeSegment.length > 0) {
-                    // Convert route segment to Google Maps LatLng objects
-                    const routePath = data.routeSegment.map(point =>
-                        new google.maps.LatLng(point.lat, point.lng)
-                    );
+                    const routeCoords = data.routeSegment.map(p => [p.lng, p.lat]);
+                    const routeId = 'driver-route-' + (++routeSourceCounter);
+                    driverRouteLine = routeId;
 
-                    // Create a green polyline for the driver's route
-                    driverRouteLine = new google.maps.Polyline({
-                        path: routePath,
-                        geodesic: true,
-                        strokeColor: '#4CAF50', // Green color
-                        strokeOpacity: 0.8,
-                        strokeWeight: 6,
-                        map: map,
-                        zIndex: 10 // Make sure it appears above other elements
+                    map.addSource(routeId, {
+                        type: 'geojson',
+                        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: routeCoords } }
+                    });
+                    map.addLayer({
+                        id: routeId,
+                        type: 'line',
+                        source: routeId,
+                        layout: { 'line-join': 'round', 'line-cap': 'round' },
+                        paint: { 'line-color': '#4CAF50', 'line-width': 6, 'line-opacity': 0.8 }
                     });
 
-                    // Add animated arrow icons along the route
-                    const lineSymbol = {
-                        path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-                        scale: 3,
-                        strokeColor: '#ffffff',
-                        strokeWeight: 2,
-                        fillColor: '#4CAF50',
-                        fillOpacity: 1
-                    };
+                    // Add pickup marker with "P" label
+                    const pickupEl = document.createElement('div');
+                    pickupEl.innerHTML = `<svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#4CAF50" stroke="white" stroke-width="3"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">P</text></svg>`;
+                    const pMarker = new maplibregl.Marker({ element: pickupEl })
+                        .setLngLat([pickupCoords.lng, pickupCoords.lat]).addTo(map);
+                    driverRouteMarkers.push(pMarker);
 
-                    driverRouteLine.setOptions({
-                        icons: [{
-                            icon: lineSymbol,
-                            offset: '0',
-                            repeat: '100px'
-                        }]
-                    });
-
-                    // Add markers for pickup and dropoff points on driver's route
-                    const pickupMarkerIcon = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="16" cy="16" r="14" fill="#4CAF50" stroke="white" stroke-width="3"/>
-                            <text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">P</text>
-                        </svg>
-                    `);
-
-                    const dropoffMarkerIcon = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="16" cy="16" r="14" fill="${data.isPartialRide ? '#ff6b00' : '#f44336'}" stroke="white" stroke-width="3"/>
-                            <text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">D</text>
-                        </svg>
-                    `);
-
-                    // Add pickup marker
-                    const pickupMarker = new google.maps.Marker({
-                        position: { lat: pickupCoords.lat, lng: pickupCoords.lng },
-                        map: map,
-                        title: 'Pickup Point',
-                        icon: {
-                            url: pickupMarkerIcon,
-                            scaledSize: new google.maps.Size(32, 32),
-                            anchor: new google.maps.Point(16, 16)
-                        },
-                        zIndex: 100
-                    });
-                    driverRouteMarkers.push(pickupMarker);
-
-                    // Add dropoff marker using the actual drop-off point from backend
+                    // Add dropoff marker with "D" label
                     const actualDropoffPoint = data.actualDropoffPoint;
-                    const dropoffMarker = new google.maps.Marker({
-                        position: { lat: actualDropoffPoint.lat, lng: actualDropoffPoint.lng },
-                        map: map,
-                        title: data.isPartialRide ? 'Actual Drop-off Point' : 'Drop-off Point',
-                        icon: {
-                            url: dropoffMarkerIcon,
-                            scaledSize: new google.maps.Size(32, 32),
-                            anchor: new google.maps.Point(16, 16)
-                        },
-                        zIndex: 100
-                    });
-                    driverRouteMarkers.push(dropoffMarker);
+                    const dropoffEl = document.createElement('div');
+                    const dropoffColor = data.isPartialRide ? '#ff6b00' : '#f44336';
+                    dropoffEl.innerHTML = `<svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="${dropoffColor}" stroke="white" stroke-width="3"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">D</text></svg>`;
+                    const dMarker = new maplibregl.Marker({ element: dropoffEl })
+                        .setLngLat([actualDropoffPoint.lng, actualDropoffPoint.lat]).addTo(map);
+                    driverRouteMarkers.push(dMarker);
 
-                    // For partial rides, also show the remaining path to passenger's destination
+                    // For partial rides, draw dashed remaining path
                     if (data.isPartialRide && data.remainingDistance > 0) {
-                        // Draw dotted line from actual drop-off to passenger's final destination
-                        const remainingPathLine = new google.maps.Polyline({
-                            path: [
-                                { lat: actualDropoffPoint.lat, lng: actualDropoffPoint.lng },
-                                { lat: data.passengerDestination.lat, lng: data.passengerDestination.lng }
-                            ],
-                            strokeOpacity: 0,
-                            icons: [{
-                                icon: {
-                                    path: 'M 0,-1 0,1',
-                                    strokeOpacity: 1,
-                                    scale: 4,
-                                    strokeColor: '#ff6b00'
-                                },
-                                offset: '0',
-                                repeat: '20px'
-                            }],
-                            map: map,
-                            zIndex: 5
+                        const remId = routeId + '-remaining';
+                        map.addSource(remId, {
+                            type: 'geojson',
+                            data: {
+                                type: 'Feature', geometry: {
+                                    type: 'LineString', coordinates: [
+                                        [actualDropoffPoint.lng, actualDropoffPoint.lat],
+                                        [data.passengerDestination.lng, data.passengerDestination.lat]
+                                    ]
+                                }
+                            }
                         });
-                        driverRouteMarkers.push({ setMap: (map) => remainingPathLine.setMap(map) });
+                        map.addLayer({
+                            id: remId, type: 'line', source: remId,
+                            paint: { 'line-color': '#ff6b00', 'line-width': 3, 'line-dasharray': [4, 4] }
+                        });
+                        driverRouteMarkers.push({ remove: () => { if (map.getLayer(remId)) { map.removeLayer(remId); map.removeSource(remId); } } });
 
-                        // Add final destination marker
-                        const finalDestMarker = new google.maps.Marker({
-                            position: { lat: data.passengerDestination.lat, lng: data.passengerDestination.lng },
-                            map: map,
-                            title: 'Your Final Destination',
-                            icon: {
-                                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <circle cx="16" cy="16" r="14" fill="#9e9e9e" stroke="white" stroke-width="3"/>
-                                        <text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">F</text>
-                                    </svg>
-                                `),
-                                scaledSize: new google.maps.Size(32, 32),
-                                anchor: new google.maps.Point(16, 16)
-                            },
-                            zIndex: 100
-                        });
-                        driverRouteMarkers.push(finalDestMarker);
+                        // Final destination marker
+                        const fEl = document.createElement('div');
+                        fEl.innerHTML = `<svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#9e9e9e" stroke="white" stroke-width="3"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-weight="bold">F</text></svg>`;
+                        const fMarker = new maplibregl.Marker({ element: fEl })
+                            .setLngLat([data.passengerDestination.lng, data.passengerDestination.lat]).addTo(map);
+                        driverRouteMarkers.push(fMarker);
                     }
 
-                    // Create info window with route details
-                    const routeInfoContent = `
-                        <div style="padding: 10px; max-width: 250px;">
-                            <h4 style="margin: 0 0 10px 0; color: #333;">Driver's Route</h4>
-                            <p style="margin: 5px 0; color: #666;">
-                                <strong>Distance:</strong> ${(data.segmentDistance / 1000).toFixed(1)} km
-                            </p>
-                            <p style="margin: 5px 0; color: #666;">
-                                <strong>Duration:</strong> ~${data.segmentDuration} minutes
-                            </p>
-                            ${data.isPartialRide ?
-                            `<p style="margin: 10px 0 0 0; color: #ff6b00; font-weight: bold;">
-                                    ⚠️ Partial Ride - Driver will drop you ${driver.distance_saved_percentage}% of the way<br>
-                                    Remaining: ${(data.remainingDistance / 1000).toFixed(1)} km to your destination
-                                </p>` : ''
-                        }
-                        </div>
-                    `;
+                    // Show popup with route info
+                    const midIdx = Math.floor(routeCoords.length / 2);
+                    const routeInfoContent = `<div style="padding:10px;max-width:250px;">
+                        <h4 style="margin:0 0 10px 0;color:#333;">Driver's Route</h4>
+                        <p style="margin:5px 0;color:#666;"><strong>Distance:</strong> ${(data.segmentDistance / 1000).toFixed(1)} km</p>
+                        <p style="margin:5px 0;color:#666;"><strong>Duration:</strong> ~${data.segmentDuration} minutes</p>
+                        ${data.isPartialRide ? `<p style="margin:10px 0 0 0;color:#ff6b00;font-weight:bold;">⚠️ Partial Ride - ${driver.distance_saved_percentage}% of the way<br>Remaining: ${(data.remainingDistance / 1000).toFixed(1)} km</p>` : ''}
+                    </div>`;
 
-                    routeInfoWindow = new google.maps.InfoWindow({
-                        content: routeInfoContent,
-                        position: routePath[Math.floor(routePath.length / 2)] // Middle of the route
-                    });
+                    routeInfoPopup = new maplibregl.Popup({ closeOnClick: true })
+                        .setLngLat(routeCoords[midIdx])
+                        .setHTML(routeInfoContent)
+                        .addTo(map);
+                    setTimeout(() => { if (routeInfoPopup) routeInfoPopup.remove(); }, 5000);
 
-                    // Show the info window briefly
-                    routeInfoWindow.open(map);
-                    setTimeout(() => {
-                        if (routeInfoWindow) {
-                            routeInfoWindow.close();
-                        }
-                    }, 5000);
-
-                    // Adjust map bounds to show the entire route including final destination for partial rides
-                    const bounds = new google.maps.LatLngBounds();
-                    routePath.forEach(point => bounds.extend(point));
+                    // Fit bounds
+                    const bounds = new maplibregl.LngLatBounds();
+                    routeCoords.forEach(c => bounds.extend(c));
                     if (data.isPartialRide) {
-                        bounds.extend(new google.maps.LatLng(data.passengerDestination.lat, data.passengerDestination.lng));
+                        bounds.extend([data.passengerDestination.lng, data.passengerDestination.lat]);
                     }
-                    map.fitBounds(bounds);
+                    map.fitBounds(bounds, { padding: 60 });
 
-                    // Add a slight zoom out for better visibility
                     setTimeout(() => {
-                        const currentZoom = map.getZoom();
-                        if (currentZoom > 14) {
-                            map.setZoom(14);
-                        }
+                        if (map.getZoom() > 14) map.setZoom(14);
                     }, 500);
                 }
 
@@ -2309,22 +2185,20 @@
 
         // Function to clear driver route from map
         function clearDriverRoute() {
-            // Remove the polyline
-            if (driverRouteLine) {
-                driverRouteLine.setMap(null);
+            if (driverRouteLine && map.getLayer(driverRouteLine)) {
+                map.removeLayer(driverRouteLine);
+                map.removeSource(driverRouteLine);
                 driverRouteLine = null;
             }
 
-            // Remove route markers
             driverRouteMarkers.forEach(marker => {
-                marker.setMap(null);
+                if (marker && typeof marker.remove === 'function') marker.remove();
             });
             driverRouteMarkers = [];
 
-            // Close info window
-            if (routeInfoWindow) {
-                routeInfoWindow.close();
-                routeInfoWindow = null;
+            if (routeInfoPopup) {
+                routeInfoPopup.remove();
+                routeInfoPopup = null;
             }
         }
 
@@ -2333,75 +2207,19 @@
         window.selectRealDriver = selectRealDriver;
     </script>
 
-    <!-- Google Maps API - Requires proper API key configuration -->
-    <!--
-    <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places&callback=initializeApp"></script>
-    -->
+    <!-- Ola Maps SDK -->
+    <script src="https://unpkg.com/olamaps-web-sdk@latest/dist/olamaps-web-sdk.umd.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.x/dist/maplibre-gl.css" rel="stylesheet" />
 
-    <!-- Initialize without Google Maps for demo mode -->
+    <!-- Initialize Ola Maps after SDK loads -->
     <script>
-        (function () {
-            // Get locations from URL params or localStorage
-            var urlParams = new URLSearchParams(window.location.search);
-            var startLocation = urlParams.get('start') || localStorage.getItem('startLocation') || 'Pickup Location';
-            var endLocation = urlParams.get('end') || localStorage.getItem('endLocation') || 'Dropoff Location';
-
-            // Update the UI
-            var startEl = document.getElementById('start-location');
-            var endEl = document.getElementById('end-location');
-
-            if (startEl) startEl.textContent = startLocation;
-            if (endEl) endEl.textContent = endLocation;
-
-            // Calculate fake distance and price
-            var fakeDistance = Math.floor(Math.random() * 20) + 5; // 5-25 km
-            var fakePrice = Math.floor(fakeDistance * 3);
-
-            var priceEl = document.getElementById('price-amount');
-            var distanceEl = document.getElementById('journey-distance');
-
-            if (priceEl) priceEl.textContent = fakePrice;
-            if (distanceEl) distanceEl.textContent = fakeDistance + ' km';
-
-            // Show demo drivers
-            var driversListEl = document.getElementById('drivers-list');
-            if (driversListEl) {
-                driversListEl.innerHTML = `
-                    <div class="driver-card" style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border-radius: 12px; padding: 20px; margin-bottom: 15px; border: 1px solid #333;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-size: 18px; font-weight: 600; color: white;">Demo Driver 1</div>
-                                <div style="font-size: 14px; color: #4CAF50; margin-top: 4px;">⭐ 4.8 rating</div>
-                                <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px;">Honda City • GJ-01-XX-1234</div>
-                            </div>
-                            <button style="background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">₹${fakePrice}</button>
-                        </div>
-                    </div>
-                    <div class="driver-card" style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border-radius: 12px; padding: 20px; margin-bottom: 15px; border: 1px solid #333;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-size: 18px; font-weight: 600; color: white;">Demo Driver 2</div>
-                                <div style="font-size: 14px; color: #4CAF50; margin-top: 4px;">⭐ 4.5 rating</div>
-                                <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px;">Maruti Swift • GJ-01-YY-5678</div>
-                            </div>
-                            <button style="background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">₹${fakePrice - 10}</button>
-                        </div>
-                    </div>
-                    <p style="text-align: center; color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 20px;">Demo mode - Connect backend for real drivers</p>
-                `;
-            }
-
-            // Show map fallback (escape user inputs to prevent XSS)
-            var mapEl = document.getElementById('map');
-            if (mapEl) {
-                var safeStart = startLocation.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                var safeEnd = endLocation.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                mapEl.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); color: white; text-align: center;"><div style="font-size: 64px; margin-bottom: 20px;">🗺️</div><h3 style="font-size: 24px; margin-bottom: 16px;">Map Unavailable</h3><p style="font-size: 14px; color: rgba(255,255,255,0.7);">Route from ' + safeStart + ' to ' + safeEnd + '</p></div>';
-            }
-
-            console.log('Passenger confirmation initialized in demo mode');
-        })();
+        // Check if OlaMapsSDK loaded successfully, then initialize
+        if (typeof OlaMapsSDK !== 'undefined') {
+            initializeApp();
+        } else {
+            console.warn('OlaMaps SDK not loaded, starting in fallback mode');
+            initializeAppWithoutMap();
+        }
     </script>
 </body>
 

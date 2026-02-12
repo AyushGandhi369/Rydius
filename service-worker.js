@@ -102,7 +102,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // For Google Maps and external resources - network first with cache fallback
+    // For Ola Maps and external resources - network first with cache fallback
     if (requestUrl.origin !== location.origin) {
         event.respondWith(
             fetch(event.request)

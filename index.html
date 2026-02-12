@@ -773,7 +773,7 @@
                 // Also hide the alert-style dialog
                 const allDivs = document.querySelectorAll('div');
                 allDivs.forEach(div => {
-                    if (div.textContent && div.textContent.includes("can't load Google Maps")) {
+                    if (div.textContent && div.textContent.includes("can't load Maps")) {
                         div.style.display = 'none';
                         if (div.parentElement) div.parentElement.style.display = 'none';
                     }
@@ -800,11 +800,7 @@
             console.log('Falling back to local autocomplete');
         }
     </script>
-    <!-- Google Maps API - DISABLED to ensure local autocomplete works -->
-    <!-- Uncomment below when you have a valid API key with billing:
-    <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFYLT473lC55zLeTyL0Njnh0xOWJIIQ_s&libraries=places&loading=async&callback=initGoogleMaps"></script>
-    -->
+    <!-- Ola Maps SDK is loaded on confirmation pages, not needed here -->
     <script>
         // User Authentication Management
         class AuthManager {

@@ -263,7 +263,7 @@ function notifyDriverInstantly(tripId, requestData) {
     console.log(`🚨 INSTANT NOTIFICATION: Driver for trip ${tripId} notified of ₹${driverEarnings} earnings`);
 }
 
-// Utility function to decode Google Maps polyline
+// Utility function to decode encoded polyline (compatible with both Google Maps and Ola Maps format)
 function decodePolyline(encoded) {
     const points = [];
     let index = 0;
@@ -599,6 +599,15 @@ function requireAuth(req, res, next) {
     }
     next();
 }
+
+// ============= CONFIG ENDPOINT =============
+
+// Serve Ola Maps API key to frontend
+app.get('/api/config', (req, res) => {
+    res.json({
+        olaMapsApiKey: process.env.OLA_MAPS_API_KEY || ''
+    });
+});
 
 // ============= DRIVER ENDPOINTS =============
 
