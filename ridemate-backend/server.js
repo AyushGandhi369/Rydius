@@ -100,6 +100,10 @@ app.use(express.json());
 // CORS middleware for Expo web support
 app.use((req, res, next) => {
     const origin = req.headers.origin;
+    if (origin && !isAllowedOrigin(origin)) {
+        return res.status(403).json({ message: 'Origin not allowed' });
+    }
+
     if (origin && isAllowedOrigin(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Vary', 'Origin');
@@ -1545,11 +1549,25 @@ app.put('/api/cost-sharing/fuel-prices', requireAuth, (req, res) => {
     });
 });
 
-server.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-    console.log(`WebSocket server ready for real-time notifications`);
-    console.log(`Cost sharing API ready at /api/cost-sharing/calculate`);
+// ─── Startup Validation ─────────────────────────────────────
+(function validateEnv() {
+    const key = process.env.OLA_MAPS_API_KEY;
+    if (!key || key === 'your-ola-maps-api-key-here') {
+        console.error('❌  FATAL: OLA_MAPS_API_KEY is missing or still set to placeholder.');
+        console.error('   Copy .env.example → .env and add your real Ola Maps API key.');
+        process.exit(1);
+    }
+    if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'change-me-to-a-random-secret') {
+        console.warn('⚠️  WARNING: SESSION_SECRET is missing or default. Set a strong random value in .env for production.');
+    }
     if (!process.env.RESEND_API_KEY) {
         console.warn('⚠️  WARNING: RESEND_API_KEY not set. OTP emails will fail.');
     }
+})();
+
+server.listen(port, () => {
+    console.log(`✅ Server running at http://localhost:${port}`);
+    console.log(`✅ WebSocket server ready for real-time notifications`);
+    console.log(`✅ Cost sharing API ready at /api/cost-sharing/calculate`);
+    console.log(`✅ Ola Maps proxy ready at /api/maps/*`);
 });

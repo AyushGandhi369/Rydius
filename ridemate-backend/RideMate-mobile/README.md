@@ -43,7 +43,14 @@ RIDEMATE_BASE_URL=https://your-production-domain.com
 2. Let Gradle sync and install SDK/Build Tools if prompted.
 3. Run `app` on emulator/device.
 
+CLI build (optional):
+
+```bash
+./gradlew :app:assembleDebug
+```
+
 ## Notes
 
+- Android Gradle Plugin requires JDK 17 for builds.
 - Keep production on HTTPS.
 - Do not commit `local.properties`.
