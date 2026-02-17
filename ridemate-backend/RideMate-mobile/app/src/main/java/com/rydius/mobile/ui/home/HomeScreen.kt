@@ -39,9 +39,13 @@ fun HomeScreen(
         bottomBar = {
             BottomNavBar(
                 selectedIndex = 0,
-                onHomeClick = { /* already here */ },
-                onRidesClick = onNavigateToMyRides,
-                onProfileClick = onNavigateToProfile
+                onItemSelected = { index ->
+                    when (index) {
+                        0 -> { /* already on home */ }
+                        1 -> onNavigateToMyRides()
+                        2 -> onNavigateToProfile()
+                    }
+                }
             )
         }
     ) { padding ->

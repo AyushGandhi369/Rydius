@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme (Material 3, NoActionBar for Compose) -->
+    <style name="Theme.Rydius" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/primary</item>
+        <item name="android:navigationBarColor">@color/primary</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorSecondary">@color/secondary</item>
+    </style>
+
+    <!-- Splash screen theme -->
+    <style name="Theme.Rydius.Splash" parent="Theme.Rydius">
+        <item name="android:windowBackground">@color/splash_bg</item>
+    </style>
+</resources>

@@ -32,6 +32,9 @@ val MarkerGreen    = Color(0xFF27AE60)
 val MarkerRed      = Color(0xFFE74C3C)
 val RouteBlue      = Color(0xFF3B82F6)
 
+// ── Dividers ────────────────────────────────────────────────
+val DividerColor   = Color(0xFFE0E0E0)
+
 // ── Role toggle ─────────────────────────────────────────────
 val RiderColor     = Color(0xFF00B4D8)
 val DriverColor    = Color(0xFF2ECC71)
