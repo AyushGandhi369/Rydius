@@ -51,14 +51,17 @@ interface ApiService {
     @POST("api/trips")
     suspend fun createTrip(@Body body: CreateTripRequest): Response<CreateTripResponse>
 
+    @GET("api/trips/my-rides")
+    suspend fun getMyRides(): Response<MyRidesResponse>
+
     @GET("api/trips/active")
     suspend fun getActiveTrip(): Response<ActiveTripResponse>
 
     @GET("api/trips/{id}")
-    suspend fun getTrip(@Path("id") id: Int): Response<TripResponse>
+    suspend fun getTrip(@Path("id") id: Int): Response<TripData>
 
     @GET("api/trips/{id}/requests")
-    suspend fun getTripRequests(@Path("id") id: Int): Response<TripRequestsResponse>
+    suspend fun getTripRequests(@Path("id") id: Int): Response<List<MatchData>>
 
     @GET("api/trips/{id}/route-segment")
     suspend fun getTripRouteSegment(
@@ -83,7 +86,7 @@ interface ApiService {
         @Query("dropoff_lat") dropoffLat: Double,
         @Query("dropoff_lng") dropoffLng: Double,
         @Query("distance_km") distanceKm: Double
-    ): Response<AvailableDriversResponse>
+    ): Response<List<AvailableDriver>>
 
     // ── Matches ─────────────────────────────────────────────────
     @POST("api/matches")
@@ -96,7 +99,7 @@ interface ApiService {
     ): Response<ApiResponse>
 
     @GET("api/matches/active")
-    suspend fun getActiveMatches(): Response<ActiveMatchesResponse>
+    suspend fun getActiveMatches(): Response<List<MatchData>>
 
     // ── Cost sharing ────────────────────────────────────────────
     @POST("api/cost-sharing/calculate")

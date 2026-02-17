@@ -48,6 +48,8 @@ class PassengerViewModel : ViewModel() {
     var matchAccepted by mutableStateOf(false)
         private set
 
+    private var initialized = false
+
     // ── Initialize ──────────────────────────────────────────
     fun initialize(
         startLocation: String, endLocation: String,
@@ -55,6 +57,8 @@ class PassengerViewModel : ViewModel() {
         endLat: Double, endLng: Double,
         seats: Int, departureTime: String
     ) {
+        if (initialized) return
+        initialized = true
         viewModelScope.launch {
             isLoading = true
             try {
@@ -89,7 +93,7 @@ class PassengerViewModel : ViewModel() {
 
                 reqResult.fold(
                     onSuccess = { response ->
-                        if (response.success && response.rideRequestId != null) {
+                        if (response.rideRequestId != null) {
                             rideRequestId = response.rideRequestId
                         } else {
                             errorMessage = response.message ?: "Failed to create ride request"
@@ -123,9 +127,7 @@ class PassengerViewModel : ViewModel() {
     ) {
         isSearchingDrivers = true
         tripRepo.getAvailableDrivers(pickupLat, pickupLng, dropoffLat, dropoffLng, distKm).fold(
-            onSuccess = { response ->
-                availableDrivers = response.drivers ?: emptyList()
-            },
+            onSuccess = { drivers -> availableDrivers = drivers },
             onFailure = {
                 availableDrivers = emptyList()
             }
@@ -160,11 +162,16 @@ class PassengerViewModel : ViewModel() {
                     pickupLng = pickupLng,
                     dropoffLat = dropoffLat,
                     dropoffLng = dropoffLng,
-                    fare = driver.fare ?: (distanceKm * 3.0)
+                    fareAmount = driver.fare ?: (distanceKm * 3.0)
                 )
             ).fold(
                 onSuccess = { response ->
-                    matchSent = true
+                    if (response.matchId != null) {
+                        matchSent = true
+                    } else {
+                        errorMessage = response.message ?: "Failed to send match request"
+                        selectedDriverTripId = null
+                    }
                 },
                 onFailure = { e ->
                     errorMessage = e.message
@@ -175,4 +182,15 @@ class PassengerViewModel : ViewModel() {
     }
 
     fun clearError() { errorMessage = null }
+
+    fun retry(
+        startLocation: String, endLocation: String,
+        startLat: Double, startLng: Double,
+        endLat: Double, endLng: Double,
+        seats: Int, departureTime: String
+    ) {
+        initialized = false
+        errorMessage = null
+        initialize(startLocation, endLocation, startLat, startLng, endLat, endLng, seats, departureTime)
+    }
 }

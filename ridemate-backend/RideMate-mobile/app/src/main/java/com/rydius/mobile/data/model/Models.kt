@@ -23,28 +23,28 @@ data class LoginRequest(
 )
 
 data class CreateTripRequest(
-    @SerializedName("startLocation")    val startLocation: String,
-    @SerializedName("startLocationLat") val startLocationLat: Double,
-    @SerializedName("startLocationLng") val startLocationLng: Double,
-    @SerializedName("endLocation")      val endLocation: String,
-    @SerializedName("endLocationLat")   val endLocationLat: Double,
-    @SerializedName("endLocationLng")   val endLocationLng: Double,
-    @SerializedName("routePolyline")    val routePolyline: String? = null,
-    @SerializedName("distanceKm")       val distanceKm: Double,
-    @SerializedName("durationMinutes")  val durationMinutes: Int,
-    @SerializedName("departureTime")    val departureTime: String,
-    @SerializedName("availableSeats")   val availableSeats: Int = 1
+    @SerializedName("start_location")    val startLocation: String,
+    @SerializedName("start_lat")         val startLocationLat: Double,
+    @SerializedName("start_lng")         val startLocationLng: Double,
+    @SerializedName("end_location")      val endLocation: String,
+    @SerializedName("end_lat")           val endLocationLat: Double,
+    @SerializedName("end_lng")           val endLocationLng: Double,
+    @SerializedName("route_polyline")    val routePolyline: String? = null,
+    @SerializedName("distance_km")       val distanceKm: Double,
+    @SerializedName("duration_minutes")  val durationMinutes: Int,
+    @SerializedName("departure_time")    val departureTime: String,
+    @SerializedName("available_seats")   val availableSeats: Int = 1
 )
 
 data class CreateRideRequestRequest(
-    @SerializedName("pickupLocation")  val pickupLocation: String,
-    @SerializedName("pickupLat")       val pickupLat: Double,
-    @SerializedName("pickupLng")       val pickupLng: Double,
-    @SerializedName("dropoffLocation") val dropoffLocation: String,
-    @SerializedName("dropoffLat")      val dropoffLat: Double,
-    @SerializedName("dropoffLng")      val dropoffLng: Double,
-    @SerializedName("requestedTime")   val requestedTime: String,
-    @SerializedName("travelMode")      val travelMode: String = "4W"
+    @SerializedName("pickup_location")  val pickupLocation: String,
+    @SerializedName("pickup_lat")       val pickupLat: Double,
+    @SerializedName("pickup_lng")       val pickupLng: Double,
+    @SerializedName("dropoff_location") val dropoffLocation: String,
+    @SerializedName("dropoff_lat")      val dropoffLat: Double,
+    @SerializedName("dropoff_lng")      val dropoffLng: Double,
+    @SerializedName("requested_time")   val requestedTime: String,
+    @SerializedName("travel_mode")      val travelMode: String = "4W"
 )
 
 data class CreateMatchRequest(
@@ -54,7 +54,7 @@ data class CreateMatchRequest(
     @SerializedName("pickup_lng")       val pickupLng: Double,
     @SerializedName("dropoff_lat")      val dropoffLat: Double,
     @SerializedName("dropoff_lng")      val dropoffLng: Double,
-    val fare: Double
+    @SerializedName("fare_amount")      val fareAmount: Double
 )
 
 data class UpdateMatchStatusRequest(val status: String)
@@ -77,15 +77,16 @@ data class ApiResponse(
 )
 
 data class LoginResponse(
-    val success: Boolean = false,
     val message: String? = null,
     val user: UserInfo? = null
 )
 
 data class AuthStatusResponse(
-    val loggedIn: Boolean = false,
+    @SerializedName("isAuthenticated") val isAuthenticated: Boolean = false,
     val user: UserInfo? = null
-)
+) {
+    val loggedIn: Boolean get() = isAuthenticated
+}
 
 data class UserInfo(
     val id: Int = -1,
@@ -151,7 +152,6 @@ data class MetricValue(
 // ── Trips ───────────────────────────────────────────────────────
 
 data class CreateTripResponse(
-    val success: Boolean = false,
     @SerializedName("tripId") val tripId: Int? = null,
     val message: String? = null
 )
@@ -168,11 +168,11 @@ data class TripData(
     val id: Int = 0,
     @SerializedName("driver_id")          val driverId: Int = 0,
     @SerializedName("start_location")     val startLocation: String = "",
-    @SerializedName("start_location_lat") val startLocationLat: Double = 0.0,
-    @SerializedName("start_location_lng") val startLocationLng: Double = 0.0,
+    @SerializedName("start_lat")          val startLocationLat: Double = 0.0,
+    @SerializedName("start_lng")          val startLocationLng: Double = 0.0,
     @SerializedName("end_location")       val endLocation: String = "",
-    @SerializedName("end_location_lat")   val endLocationLat: Double = 0.0,
-    @SerializedName("end_location_lng")   val endLocationLng: Double = 0.0,
+    @SerializedName("end_lat")            val endLocationLat: Double = 0.0,
+    @SerializedName("end_lng")            val endLocationLng: Double = 0.0,
     @SerializedName("route_polyline")     val routePolyline: String? = null,
     @SerializedName("distance_km")        val distanceKm: Double = 0.0,
     @SerializedName("duration_minutes")   val durationMinutes: Int = 0,
@@ -200,8 +200,7 @@ data class LatLng(
 // ── Ride requests ───────────────────────────────────────────────
 
 data class CreateRideRequestResponse(
-    val success: Boolean = false,
-    @SerializedName("rideRequestId") val rideRequestId: Int? = null,
+    @SerializedName("requestId") val rideRequestId: Int? = null,
     val message: String? = null
 )
 
@@ -210,7 +209,7 @@ data class AvailableDriversResponse(
 )
 
 data class AvailableDriver(
-    @SerializedName("trip_id")          val tripId: Int = 0,
+    @SerializedName("id")               val tripId: Int = 0,
     @SerializedName("driver_name")      val driverName: String? = null,
     @SerializedName("start_location")   val startLocation: String = "",
     @SerializedName("end_location")     val endLocation: String = "",
@@ -218,20 +217,19 @@ data class AvailableDriver(
     @SerializedName("distance_km")      val distanceKm: Double = 0.0,
     @SerializedName("pickup_distance")  val pickupDistance: Double = 0.0,
     @SerializedName("dropoff_distance") val dropoffDistance: Double = 0.0,
-    val fare: Double? = null,
+    @SerializedName("estimated_fare")   val fare: Double? = null,
     @SerializedName("vehicle_type")     val vehicleType: String? = null,
     val rating: Double? = null,
     @SerializedName("route_polyline")   val routePolyline: String? = null,
-    @SerializedName("start_location_lat") val startLat: Double? = null,
-    @SerializedName("start_location_lng") val startLng: Double? = null,
-    @SerializedName("end_location_lat")   val endLat: Double? = null,
-    @SerializedName("end_location_lng")   val endLng: Double? = null
+    @SerializedName("start_lat")        val startLat: Double? = null,
+    @SerializedName("start_lng")        val startLng: Double? = null,
+    @SerializedName("end_lat")          val endLat: Double? = null,
+    @SerializedName("end_lng")          val endLng: Double? = null
 )
 
 // ── Matches ─────────────────────────────────────────────────────
 
 data class CreateMatchResponse(
-    val success: Boolean = false,
     val message: String? = null,
     @SerializedName("matchId") val matchId: Int? = null
 )
@@ -277,4 +275,31 @@ data class FuelPrice(
     @SerializedName("vehicle_type") val vehicleType: String = "",
     @SerializedName("fuel_type")    val fuelType: String = "",
     @SerializedName("cost_per_km")  val costPerKm: Double = 0.0
+)
+
+// ── My Rides ────────────────────────────────────────────────────
+data class MyRidesResponse(
+    val rides: List<MyRide> = emptyList()
+)
+
+data class MyRide(
+    val id: Int = 0,
+    @SerializedName("driver_id")         val driverId: Int = 0,
+    @SerializedName("start_location")    val startLocation: String = "",
+    @SerializedName("end_location")      val endLocation: String = "",
+    @SerializedName("start_location_lat") val startLat: Double = 0.0,
+    @SerializedName("start_location_lng") val startLng: Double = 0.0,
+    @SerializedName("end_location_lat")  val endLat: Double = 0.0,
+    @SerializedName("end_location_lng")  val endLng: Double = 0.0,
+    @SerializedName("distance_km")       val distanceKm: Double = 0.0,
+    @SerializedName("duration_minutes")  val durationMinutes: Int = 0,
+    @SerializedName("departure_time")    val departureTime: String = "",
+    @SerializedName("available_seats")   val availableSeats: Int = 0,
+    val status: String = "",
+    @SerializedName("created_at")        val createdAt: String = "",
+    val userRole: String = "",           // "driver" or "passenger"
+    @SerializedName("driver_name")       val driverName: String? = null,
+    @SerializedName("fare_share")        val fareShare: Double? = null,
+    @SerializedName("match_status")      val matchStatus: String? = null,
+    @SerializedName("passenger_count")   val passengerCount: Int? = null
 )

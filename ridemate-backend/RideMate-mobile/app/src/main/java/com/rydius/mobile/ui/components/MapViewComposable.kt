@@ -4,7 +4,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import com.rydius.mobile.BuildConfig
 import com.rydius.mobile.util.Constants
 import com.rydius.mobile.util.LocationHelper
 import org.maplibre.android.MapLibre
@@ -12,7 +11,6 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapView
-import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
@@ -34,7 +32,11 @@ fun MapViewComposable(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val styleUrl = "${Constants.OLA_STYLE_URL}?api_key=${BuildConfig.OLA_MAPS_API_KEY}"
+    val olaMapsApiKey = Constants.OLA_API_KEY
+    val styleUrl = remember(olaMapsApiKey) {
+        if (olaMapsApiKey.isBlank()) Constants.OLA_STYLE_URL
+        else "${Constants.OLA_STYLE_URL}?api_key=$olaMapsApiKey"
+    }
 
     // Decode the polyline once and remember the result
     val decodedPoints = remember(routePolyline) {
@@ -46,8 +48,8 @@ fun MapViewComposable(
         MapView(context)
     }
 
-    // Track whether layers have already been added (prevents duplicate source crash)
-    var layersAdded by remember { mutableStateOf(false) }
+    // Re-render map only when significant route inputs change.
+    var lastRenderSignature by remember { mutableStateOf("") }
 
     DisposableEffect(Unit) {
         mapView.onStart()
@@ -63,11 +65,14 @@ fun MapViewComposable(
         factory = { mapView },
         modifier = modifier,
         update = { view ->
-            if (layersAdded) return@AndroidView
+            val renderSignature = listOf(
+                startLat, startLng, endLat, endLng, routePolyline, styleUrl
+            ).joinToString("|")
+            if (renderSignature == lastRenderSignature) return@AndroidView
+            lastRenderSignature = renderSignature
+
             view.getMapAsync { map ->
                 map.setStyle(styleUrl) { style ->
-                    layersAdded = true
-
                     map.uiSettings.isZoomGesturesEnabled = true
                     map.uiSettings.isScrollGesturesEnabled = true
                     map.uiSettings.isRotateGesturesEnabled = false

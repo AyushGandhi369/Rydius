@@ -44,26 +44,36 @@ class SocketManager {
     }
 
     // ── Driver: join a trip room to receive passenger requests ───
-    fun joinTrip(tripId: Int) {
+    fun joinTrip(tripId: Int, userId: Int) {
         currentTripId = tripId
-        socket?.emit("driver-join-trip", tripId)
+        val payload = JSONObject().apply {
+            put("tripId", tripId)
+            put("userId", userId)
+        }
+        socket?.emit("driver-join-trip", payload)
     }
 
     fun leaveTrip() {
         currentTripId?.let { id ->
-            socket?.emit("driver-leave-trip", id)
+            val payload = JSONObject().apply { put("tripId", id) }
+            socket?.emit("driver-leave-trip", payload)
         }
         currentTripId = null
     }
 
     // ── Passenger: notify driver that we selected them ──────────
-    fun notifyDriverSelected(tripId: Int) {
-        socket?.emit("passenger-selected-driver", tripId)
+    fun notifyDriverSelected(tripId: Int, fareAmount: Double? = null, passengerData: JSONObject? = null) {
+        val payload = JSONObject().apply {
+            put("tripId", tripId)
+            if (fareAmount != null) put("fareAmount", fareAmount)
+            if (passengerData != null) put("passengerData", passengerData)
+        }
+        socket?.emit("passenger-selected-driver", payload)
     }
 
     // ── Listen for new passenger request (driver side) ──────────
     fun onNewPassengerRequest(listener: (JSONObject) -> Unit) {
-        socket?.on("new-passenger-request") { args ->
+        socket?.on("passenger-request") { args ->
             if (args.isNotEmpty()) {
                 try {
                     val data = args[0] as? JSONObject ?: JSONObject(args[0].toString())

@@ -1,5 +1,7 @@
 package com.rydius.mobile.ui.home
 
+import android.annotation.SuppressLint
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -7,11 +9,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.location.LocationServices
 import com.rydius.mobile.data.model.Prediction
 import com.rydius.mobile.data.repository.MapRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class HomeViewModel : ViewModel() {
 
@@ -116,6 +120,40 @@ class HomeViewModel : ViewModel() {
     fun dismissSuggestions() {
         showPickupSuggestions = false
         showDropoffSuggestions = false
+    }
+
+    // ── Current Location ────────────────────────────────────
+    var isFetchingLocation by mutableStateOf(false)
+        private set
+
+    @SuppressLint("MissingPermission")
+    fun fetchCurrentLocation(context: Context) {
+        if (isFetchingLocation) return
+        isFetchingLocation = true
+        viewModelScope.launch {
+            try {
+                val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+                val location = fusedClient.lastLocation.await()
+                if (location != null) {
+                    pickupLat = location.latitude
+                    pickupLng = location.longitude
+                    // Reverse geocode to get address
+                    mapRepo.reverseGeocode(location.latitude, location.longitude).onSuccess { result ->
+                        val addr = result.address
+                        if (!addr.isNullOrBlank()) pickupText = addr
+                        else pickupText = "${location.latitude}, ${location.longitude}"
+                    }.onFailure {
+                        pickupText = "${location.latitude}, ${location.longitude}"
+                    }
+                } else {
+                    errorMessage = "Could not get current location"
+                }
+            } catch (e: Exception) {
+                errorMessage = "Location error: ${e.message}"
+            } finally {
+                isFetchingLocation = false
+            }
+        }
     }
 
     fun swapLocations() {

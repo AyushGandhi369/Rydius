@@ -78,15 +78,13 @@ fun AppNavGraph(
             HomeScreen(
                 onNavigateToDriver = { start, end, sLat, sLng, eLat, eLng, seats, time ->
                     val route = Routes.driverRoute(
-                        start.replace("/", " "), end.replace("/", " "),
-                        sLat, sLng, eLat, eLng, seats, time.replace("/", " ")
+                        start, end, sLat, sLng, eLat, eLng, seats, time
                     )
                     navController.navigate(route)
                 },
                 onNavigateToPassenger = { start, end, sLat, sLng, eLat, eLng, seats, time ->
                     val route = Routes.passengerRoute(
-                        start.replace("/", " "), end.replace("/", " "),
-                        sLat, sLng, eLat, eLng, seats, time.replace("/", " ")
+                        start, end, sLat, sLng, eLat, eLng, seats, time
                     )
                     navController.navigate(route)
                 },

@@ -56,6 +56,8 @@ class DriverViewModel : ViewModel() {
     var tripCancelled by mutableStateOf(false)
         private set
 
+    private var initialized = false
+
     // ── Initialize ──────────────────────────────────────────
     fun initialize(
         startLocation: String, endLocation: String,
@@ -63,6 +65,8 @@ class DriverViewModel : ViewModel() {
         endLat: Double, endLng: Double,
         seats: Int, departureTime: String
     ) {
+        if (initialized) return
+        initialized = true
         viewModelScope.launch {
             isLoading = true
             try {
@@ -103,7 +107,7 @@ class DriverViewModel : ViewModel() {
 
                 tripResult.fold(
                     onSuccess = { response ->
-                        if (response.success && response.tripId != null) {
+                        if (response.tripId != null) {
                             tripId = response.tripId
                             searchStatusText = "Searching for passengers..."
                             searchingPassengers = true
@@ -141,8 +145,7 @@ class DriverViewModel : ViewModel() {
     }
 
     private suspend fun fetchPendingRequests(tripId: Int) {
-        tripRepo.getTripRequests(tripId).onSuccess { response ->
-            val requests = response.requests ?: emptyList()
+        tripRepo.getTripRequests(tripId).onSuccess { requests ->
             pendingRequests = requests.filter { it.status == Constants.STATUS_PENDING }
             if (pendingRequests.isNotEmpty()) {
                 searchStatusText = "${pendingRequests.size} passenger request(s)!"
@@ -153,8 +156,9 @@ class DriverViewModel : ViewModel() {
     // ── Socket.IO real-time ─────────────────────────────────
     private fun setupSocketListening(tripId: Int) {
         socketManager.connect()
-        socketManager.joinTrip(tripId)
-        socketManager.onNewPassengerRequest { data ->
+        val userId = RideMateApp.instance.sessionManager.userId
+        socketManager.joinTrip(tripId, userId)
+        socketManager.onNewPassengerRequest { _ ->
             viewModelScope.launch {
                 fetchPendingRequests(tripId)
             }
@@ -210,6 +214,17 @@ class DriverViewModel : ViewModel() {
                 onFailure = { errorMessage = it.message }
             )
         }
+    }
+
+    fun retry(
+        startLocation: String, endLocation: String,
+        startLat: Double, startLng: Double,
+        endLat: Double, endLng: Double,
+        seats: Int, departureTime: String
+    ) {
+        initialized = false
+        errorMessage = null
+        initialize(startLocation, endLocation, startLat, startLng, endLat, endLng, seats, departureTime)
     }
 
     override fun onCleared() {

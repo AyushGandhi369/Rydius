@@ -1,5 +1,9 @@
 package com.rydius.mobile.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,10 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rydius.mobile.ui.components.BottomNavBar
 import com.rydius.mobile.ui.components.LocationSearchBar
@@ -35,6 +41,28 @@ fun HomeScreen(
     onNavigateToProfile: () -> Unit,
     vm: HomeViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    var locationPermissionGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        locationPermissionGranted = granted
+        if (granted) vm.fetchCurrentLocation(context)
+    }
+
+    // Request location permission on first launch
+    LaunchedEffect(Unit) {
+        if (!locationPermissionGranted) {
+            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     Scaffold(
         bottomBar = {
             BottomNavBar(
@@ -123,6 +151,32 @@ fun HomeScreen(
                                 onSuggestionClick = { vm.selectPickup(it) },
                                 onDismissSuggestions = { vm.dismissSuggestions() }
                             )
+
+                            // Use current location button
+                            TextButton(
+                                onClick = {
+                                    if (locationPermissionGranted) {
+                                        vm.fetchCurrentLocation(context)
+                                    } else {
+                                        permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                                    }
+                                },
+                                modifier = Modifier.padding(start = 4.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.MyLocation,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Primary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    if (vm.isFetchingLocation) "Fetching..." else "Use current location",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Primary
+                                )
+                            }
 
                             // Swap button
                             Row(

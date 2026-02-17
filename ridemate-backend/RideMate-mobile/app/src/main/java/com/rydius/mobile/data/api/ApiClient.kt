@@ -1,10 +1,13 @@
 package com.rydius.mobile.data.api
 
 import android.content.Context
+import android.content.Intent
 import com.rydius.mobile.BuildConfig
 import com.rydius.mobile.util.Constants
+import okhttp3.Interceptor
 import okhttp3.JavaNetCookieJar
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -24,7 +27,14 @@ object ApiClient {
     lateinit var api: ApiService
         private set
 
+    /** Broadcast action sent when a 401 is detected (session expired). */
+    const val ACTION_SESSION_EXPIRED = "com.rydius.mobile.SESSION_EXPIRED"
+
+    private var appContext: Context? = null
+
     fun init(context: Context) {
+        appContext = context.applicationContext
+
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG)
                 HttpLoggingInterceptor.Level.BODY
@@ -37,6 +47,7 @@ object ApiClient {
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor(AuthInterceptor())
             .addInterceptor(logging)
             .build()
 
@@ -52,5 +63,25 @@ object ApiClient {
     /** Clears all cookies (used on logout). */
     fun clearCookies() {
         cookieManager.cookieStore.removeAll()
+    }
+
+    /**
+     * Intercepts 401 responses and broadcasts a session-expired event
+     * so the UI can redirect to the login screen.
+     */
+    private class AuthInterceptor : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val response = chain.proceed(chain.request())
+            if (response.code == 401) {
+                // Clear cookies and notify the app
+                clearCookies()
+                appContext?.let { ctx ->
+                    val session = com.rydius.mobile.util.SessionManager(ctx)
+                    session.clear()
+                    ctx.sendBroadcast(Intent(ACTION_SESSION_EXPIRED))
+                }
+            }
+            return response
+        }
     }
 }

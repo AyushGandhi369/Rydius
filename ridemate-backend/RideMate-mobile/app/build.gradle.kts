@@ -1,3 +1,5 @@
+import org.gradle.api.GradleException
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -21,15 +23,28 @@ android {
         debug {
             val baseUrl = project.findProperty("RIDEMATE_BASE_URL")?.toString()
                 ?: "http://10.0.2.2:3000"
+            val olaMapsApiKey = project.findProperty("OLA_MAPS_API_KEY")?.toString()
+                ?: System.getenv("OLA_MAPS_API_KEY").orEmpty()
             buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
-            buildConfigField("String", "OLA_MAPS_API_KEY", "\"W1AuHz2nZpE209SCceS7rLGGzNSjpMqw6izkx25d\"")
+            buildConfigField("String", "OLA_MAPS_API_KEY", "\"$olaMapsApiKey\"")
             isMinifyEnabled = false
         }
         release {
             val baseUrl = project.findProperty("RIDEMATE_BASE_URL")?.toString()
                 ?: "https://your-production-domain.com"
+            val olaMapsApiKey = project.findProperty("OLA_MAPS_API_KEY")?.toString()
+                ?: System.getenv("OLA_MAPS_API_KEY").orEmpty()
+            if (baseUrl.contains("your-production-domain.com")) {
+                throw GradleException("RIDEMATE_BASE_URL must be set to your production HTTPS URL for release builds.")
+            }
+            if (!baseUrl.startsWith("https://")) {
+                throw GradleException("Release RIDEMATE_BASE_URL must use https://")
+            }
+            if (olaMapsApiKey.isBlank()) {
+                throw GradleException("OLA_MAPS_API_KEY is required for release builds.")
+            }
             buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
-            buildConfigField("String", "OLA_MAPS_API_KEY", "\"W1AuHz2nZpE209SCceS7rLGGzNSjpMqw6izkx25d\"")
+            buildConfigField("String", "OLA_MAPS_API_KEY", "\"$olaMapsApiKey\"")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -65,6 +80,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
     // Core Android
@@ -85,6 +101,7 @@ dependencies {
 
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.7.0")

@@ -240,7 +240,14 @@ io.on('connection', (socket) => {
 
     // Driver joins their trip room for notifications
     socket.on('driver-join-trip', (data) => {
-        const { tripId, userId } = data;
+        const payload = (data && typeof data === 'object') ? data : { tripId: data };
+        const tripId = parseInt(payload.tripId, 10);
+        const userId = payload.userId || null;
+
+        if (!Number.isFinite(tripId) || tripId <= 0) {
+            return;
+        }
+
         console.log(`Driver ${userId} joined trip ${tripId} room`);
 
         // Store driver connection
@@ -256,7 +263,11 @@ io.on('connection', (socket) => {
 
     // Driver leaves trip room
     socket.on('driver-leave-trip', (data) => {
-        const { tripId } = data;
+        const payload = (data && typeof data === 'object') ? data : { tripId: data };
+        const tripId = parseInt(payload.tripId, 10);
+        if (!Number.isFinite(tripId) || tripId <= 0) {
+            return;
+        }
         console.log(`Driver left trip ${tripId} room`);
 
         // Remove from active drivers
@@ -281,7 +292,14 @@ io.on('connection', (socket) => {
 
     // Passenger notification when they select a driver
     socket.on('passenger-selected-driver', (data) => {
-        const { tripId, passengerData, fareAmount } = data;
+        const payload = (data && typeof data === 'object') ? data : { tripId: data };
+        const tripId = parseInt(payload.tripId, 10);
+        const passengerData = payload.passengerData || {};
+        const fareAmount = Number(payload.fareAmount) || 0;
+
+        if (!Number.isFinite(tripId) || tripId <= 0) {
+            return;
+        }
         console.log(`Passenger selected driver for trip ${tripId}`);
 
         // Calculate driver earnings (86% of total fare)
@@ -899,6 +917,40 @@ app.post('/api/trips', requireAuth, (req, res) => {
                 message: 'Trip created successfully',
                 tripId: this.lastID
             });
+        });
+    });
+});
+
+// Get all rides (as driver and passenger) for current user
+app.get('/api/trips/my-rides', requireAuth, (req, res) => {
+    const userId = req.session.userId;
+
+    // Rides as driver
+    const driverSql = `SELECT t.*, 'driver' as user_role, 
+                        (SELECT COUNT(*) FROM matches WHERE trip_id = t.id AND status = 'accepted') as passenger_count
+                        FROM trips t WHERE t.driver_id = ? ORDER BY t.created_at DESC`;
+
+    // Rides as passenger (via matches)
+    const passengerSql = `SELECT t.*, 'passenger' as user_role, m.status as match_status,
+                           ud.name as driver_name, m.fare_share
+                           FROM matches m 
+                           JOIN trips t ON m.trip_id = t.id 
+                           JOIN ride_requests rr ON m.ride_request_id = rr.id
+                           JOIN users ud ON t.driver_id = ud.id
+                           WHERE rr.passenger_id = ? 
+                           ORDER BY t.created_at DESC`;
+
+    db.all(driverSql, [userId], (err1, driverRides) => {
+        if (err1) return res.status(500).json({ message: 'Error fetching rides' });
+        db.all(passengerSql, [userId], (err2, passengerRides) => {
+            if (err2) return res.status(500).json({ message: 'Error fetching rides' });
+            
+            const allRides = [
+                ...(driverRides || []).map(r => ({ ...r, userRole: 'driver' })),
+                ...(passengerRides || []).map(r => ({ ...r, userRole: 'passenger' }))
+            ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+            res.json({ rides: allRides });
         });
     });
 });

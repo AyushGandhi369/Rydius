@@ -182,8 +182,27 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Sign out
+            var showLogoutDialog by remember { mutableStateOf(false) }
+
+            if (showLogoutDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLogoutDialog = false },
+                    title = { Text("Sign Out") },
+                    text = { Text("Are you sure you want to sign out?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showLogoutDialog = false
+                            authVm.logout(onLogout)
+                        }) { Text("Sign Out", color = Error) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
+                    }
+                )
+            }
+
             TextButton(
-                onClick = { authVm.logout(onLogout) },
+                onClick = { showLogoutDialog = true },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
@@ -202,7 +221,7 @@ fun ProfileScreen(
 
             // App version
             Text(
-                text = "Rydius v1.0.0",
+                text = "Rydius v${com.rydius.mobile.BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary,
                 modifier = Modifier

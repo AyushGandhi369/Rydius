@@ -45,6 +45,26 @@ fun DriverConfirmationScreen(
         vm.initialize(startLocation, endLocation, startLat, startLng, endLat, endLng, seats, departureTime)
     }
 
+    var showCancelDialog by remember { mutableStateOf(false) }
+
+    // Cancel trip confirmation dialog
+    if (showCancelDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelDialog = false },
+            title = { Text("Cancel Trip") },
+            text = { Text("Are you sure you want to cancel this trip? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCancelDialog = false
+                    vm.cancelTrip(onNavigateHome)
+                }) { Text("Cancel Trip", color = Error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCancelDialog = false }) { Text("Keep Trip") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -61,7 +81,7 @@ fun DriverConfirmationScreen(
                 ),
                 actions = {
                     if (vm.tripId != null) {
-                        TextButton(onClick = { vm.cancelTrip(onNavigateHome) }) {
+                        TextButton(onClick = { showCancelDialog = true }) {
                             Text("Cancel Trip", color = Error)
                         }
                     }
@@ -97,7 +117,12 @@ fun DriverConfirmationScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(error, color = Error, textAlign = TextAlign.Center)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = onBack) { Text("Go Back") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(onClick = onBack) { Text("Go Back") }
+                        Button(onClick = {
+                            vm.retry(startLocation, endLocation, startLat, startLng, endLat, endLng, seats, departureTime)
+                        }) { Text("Retry") }
+                    }
                 }
             }
             return@Scaffold

@@ -86,7 +86,12 @@ fun PassengerConfirmationScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(error, color = Error, textAlign = TextAlign.Center)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = onBack) { Text("Go Back") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(onClick = onBack) { Text("Go Back") }
+                        Button(onClick = {
+                            vm.retry(startLocation, endLocation, startLat, startLng, endLat, endLng, seats, departureTime)
+                        }) { Text("Retry") }
+                    }
                 }
             }
             return@Scaffold

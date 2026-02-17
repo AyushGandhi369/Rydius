@@ -13,10 +13,10 @@ class TripRepository {
     suspend fun getActiveTrip(): Result<ActiveTripResponse> =
         safeCall { api.getActiveTrip() }
 
-    suspend fun getTrip(id: Int): Result<TripResponse> =
+    suspend fun getTrip(id: Int): Result<TripData> =
         safeCall { api.getTrip(id) }
 
-    suspend fun getTripRequests(tripId: Int): Result<TripRequestsResponse> =
+    suspend fun getTripRequests(tripId: Int): Result<List<MatchData>> =
         safeCall { api.getTripRequests(tripId) }
 
     suspend fun cancelTrip(id: Int): Result<ApiResponse> =
@@ -29,7 +29,7 @@ class TripRepository {
         pickupLat: Double, pickupLng: Double,
         dropoffLat: Double, dropoffLng: Double,
         distanceKm: Double
-    ): Result<AvailableDriversResponse> =
+    ): Result<List<AvailableDriver>> =
         safeCall {
             api.getAvailableDrivers(pickupLat, pickupLng, dropoffLat, dropoffLng, distanceKm)
         }
@@ -40,7 +40,7 @@ class TripRepository {
     suspend fun updateMatchStatus(matchId: Int, status: String): Result<ApiResponse> =
         safeCall { api.updateMatchStatus(matchId, UpdateMatchStatusRequest(status)) }
 
-    suspend fun getActiveMatches(): Result<ActiveMatchesResponse> =
+    suspend fun getActiveMatches(): Result<List<MatchData>> =
         safeCall { api.getActiveMatches() }
 
     suspend fun calculateCost(request: CalculateCostRequest): Result<CostSharingResponse> =
@@ -48,6 +48,9 @@ class TripRepository {
 
     suspend fun getFuelPrices(): Result<FuelPricesResponse> =
         safeCall { api.getFuelPrices() }
+
+    suspend fun getMyRides(): Result<MyRidesResponse> =
+        safeCall { api.getMyRides() }
 }
 
 private suspend fun <T> safeCall(block: suspend () -> retrofit2.Response<T>): Result<T> =

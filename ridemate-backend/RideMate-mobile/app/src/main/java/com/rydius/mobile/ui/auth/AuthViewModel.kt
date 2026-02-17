@@ -37,12 +37,16 @@ class AuthViewModel : ViewModel() {
             errorMessage = "Please fill in all fields"
             return
         }
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+            errorMessage = "Please enter a valid email address"
+            return
+        }
         viewModelScope.launch {
             isLoading = true
             errorMessage = null
             repo.login(email.trim(), password).fold(
                 onSuccess = { response ->
-                    if (response.success && response.user != null) {
+                    if (response.user != null) {
                         session.saveUser(
                             id = response.user.id,
                             name = response.user.name,
@@ -76,13 +80,9 @@ class AuthViewModel : ViewModel() {
             errorMessage = null
             repo.signup(name.trim(), email.trim(), password).fold(
                 onSuccess = { response ->
-                    if (response.success == true) {
-                        otpEmail = email.trim()
-                        signupStep = SignupStep.OTP
-                        successMessage = "OTP sent to $email"
-                    } else {
-                        errorMessage = response.message ?: response.error ?: "Signup failed"
-                    }
+                    otpEmail = email.trim()
+                    signupStep = SignupStep.OTP
+                    successMessage = response.message ?: "OTP sent to $email"
                 },
                 onFailure = { e ->
                     errorMessage = e.message ?: "Connection error"
@@ -103,12 +103,8 @@ class AuthViewModel : ViewModel() {
             errorMessage = null
             repo.verifyOtp(otpEmail, otp.trim()).fold(
                 onSuccess = { response ->
-                    if (response.success == true) {
-                        successMessage = "Account verified! Please log in."
-                        onSuccess()
-                    } else {
-                        errorMessage = response.message ?: response.error ?: "Verification failed"
-                    }
+                    successMessage = response.message ?: "Account verified! Please log in."
+                    onSuccess()
                 },
                 onFailure = { e ->
                     errorMessage = e.message ?: "Connection error"
