@@ -202,9 +202,9 @@ class HomeViewModel : ViewModel() {
     var departureDisplayText by mutableStateOf("Now")
         private set
 
-    fun setSeats(n: Int) { seats = n.coerceIn(1, 6) }
-    fun setDepartureTime(t: String) { departureTime = t }
-    fun setDepartureDisplayText(t: String) { departureDisplayText = t }
+    fun updateSeats(n: Int) { seats = n.coerceIn(1, 6) }
+    fun updateDepartureTime(t: String) { departureTime = t }
+    fun updateDepartureDisplayText(t: String) { departureDisplayText = t }
 
     // ── Quick tags ──────────────────────────────────────────
     fun applyQuickTag(tag: String) {

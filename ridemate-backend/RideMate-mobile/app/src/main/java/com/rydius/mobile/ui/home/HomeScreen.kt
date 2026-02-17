@@ -353,7 +353,7 @@ fun HomeScreen(
                                             .size(36.dp)
                                             .clip(CircleShape)
                                             .background(bgColor)
-                                            .clickable { vm.setSeats(n) },
+                                            .clickable { vm.updateSeats(n) },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
@@ -390,10 +390,10 @@ fun HomeScreen(
                                         calendar.set(Calendar.HOUR_OF_DAY, hour)
                                         calendar.set(Calendar.MINUTE, minute)
                                         if (calendar.timeInMillis <= System.currentTimeMillis() + 60_000) {
-                                            vm.setDepartureTime("Now")
+                                            vm.updateDepartureTime("Now")
                                         } else {
-                                            vm.setDepartureTime(isoFormat.format(calendar.time))
-                                            vm.setDepartureDisplayText(dateFormat.format(calendar.time))
+                                            vm.updateDepartureTime(isoFormat.format(calendar.time))
+                                            vm.updateDepartureDisplayText(dateFormat.format(calendar.time))
                                         }
                                         showTimePicker = false
                                     },
