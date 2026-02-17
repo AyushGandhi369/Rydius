@@ -1,6 +1,6 @@
 ﻿# Rydius — Context Documentation
 
-> **Last Updated:** February 18, 2026
+> **Last Updated:** February 19, 2026
 > **Purpose:** Single source of truth for any AI agent working on this codebase. Read this FIRST.
 
 ---
@@ -197,12 +197,14 @@ suspend fun login(email: String, password: String): Result<LoginResponse> =
     safeApiCall { api.login(LoginRequest(email, password)) }
 ```
 
+`safeApiCall` auto-parses JSON error responses: extracts the `message` or `error` field from `{"message":"..."}` responses so users see clean error text, not raw JSON.
+
 **DO NOT** create private `safeCall` duplicates in repositories.
 
 ### 6.4. MapViewComposable — Encoded Polyline (CRITICAL)
 `MapViewComposable` accepts `routePolyline: String?` — the **encoded** polyline string. It decodes internally via `LocationHelper.decodePolyline()`.
 
-Uses **GeoJSON sources** + `CircleLayer` / `LineLayer`. A `layersAdded` flag prevents duplicate layer crashes during recomposition.
+Uses **GeoJSON sources** + `CircleLayer` / `LineLayer`. Before adding sources/layers, existing ones with the same ID are removed first to prevent duplicate crashes on style reload.
 
 **DO NOT:**
 - Pass `List<Pair<Double,Double>>` — the param is `String?`
@@ -236,7 +238,26 @@ Client → Server: "driver-join-trip"              { tripId }
 Client → Server: "passenger-selected-driver"     { tripId, matchId, ... }
 Server → Client: "new-ride-request"              { match data }
 Server → Client: "ride-accepted"                 { acceptance data }
+Server → Client: "match-status-update"           { matchId, status, passengerId, driverId }
 ```
+
+### 6.10. Passenger Match Status — Polling
+After a passenger sends a match request, `PassengerViewModel` polls `GET /api/matches/active` every 5 seconds to detect when the driver accepts/rejects. States: `matchSent`, `matchAccepted`, `matchRejected`. The `PassengerConfirmationScreen` shows appropriate cards ("Ride Confirmed!" or "Request Declined — try another driver").
+
+### 6.11. Trip Completion Flow
+Drivers can complete a trip via `PUT /api/trips/:id/complete`. The `DriverConfirmationScreen` top bar has both "Complete" and "Cancel" buttons with confirmation dialogs. Completing a trip:
+- Sets trip status to `completed`
+- Marks accepted matches as `completed`
+- Rejects remaining pending matches
+
+### 6.12. Active Trip Recovery
+On HomeScreen load, `HomeViewModel` checks `GET /api/trips/active`. If the driver has an active trip, a banner appears with "Resume Trip" (navigates to DriverConfirmationScreen) and "Dismiss" options. Prevents the confusing error when trying to create a duplicate trip.
+
+### 6.13. Departure Time Picker
+HomeScreen's departure time card is clickable — opens Android's native `DatePickerDialog` then `TimePickerDialog`. The selected date/time is sent as ISO format. If past or within 1 minute, defaults to "Now".
+
+### 6.14. Pickup Distance Display
+`DriverCard` shows pickup distance in meters for short distances (<1km) and km for longer ones. The backend returns `pickup_distance` in **meters**. Don't divide or multiply — just format correctly.
 
 ---
 
@@ -281,6 +302,7 @@ Server → Client: "ride-accepted"                 { acceptance data }
 | GET | `/api/trips/:id/requests` | Passenger requests for trip |
 | GET | `/api/trips/:id/route-segment` | Privacy-safe route segment |
 | PUT | `/api/trips/:id/cancel` | Cancel trip |
+| PUT | `/api/trips/:id/complete` | Mark trip as completed |
 
 ### Ride Requests (passenger)
 | Method | Endpoint | Description |

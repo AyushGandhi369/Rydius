@@ -46,6 +46,7 @@ fun DriverConfirmationScreen(
     }
 
     var showCancelDialog by remember { mutableStateOf(false) }
+    var showCompleteDialog by remember { mutableStateOf(false) }
 
     // Cancel trip confirmation dialog
     if (showCancelDialog) {
@@ -61,6 +62,24 @@ fun DriverConfirmationScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showCancelDialog = false }) { Text("Keep Trip") }
+            }
+        )
+    }
+
+    // Complete trip confirmation dialog
+    if (showCompleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showCompleteDialog = false },
+            title = { Text("Complete Trip") },
+            text = { Text("Mark this trip as completed? This will finalize the ride for all passengers.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCompleteDialog = false
+                    vm.completeTrip(onNavigateHome)
+                }) { Text("Complete", color = Success) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCompleteDialog = false }) { Text("Not Yet") }
             }
         )
     }
@@ -81,8 +100,11 @@ fun DriverConfirmationScreen(
                 ),
                 actions = {
                     if (vm.tripId != null) {
+                        TextButton(onClick = { showCompleteDialog = true }) {
+                            Text("Complete", color = Success)
+                        }
                         TextButton(onClick = { showCancelDialog = true }) {
-                            Text("Cancel Trip", color = Error)
+                            Text("Cancel", color = Error)
                         }
                     }
                 }

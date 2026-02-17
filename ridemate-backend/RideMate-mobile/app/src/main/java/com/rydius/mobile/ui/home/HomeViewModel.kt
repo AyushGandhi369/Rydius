@@ -21,6 +21,37 @@ import kotlinx.coroutines.tasks.await
 class HomeViewModel : ViewModel() {
 
     private val mapRepo = MapRepository()
+    private val tripRepo = com.rydius.mobile.data.repository.TripRepository()
+
+    // ── Active trip recovery ────────────────────────────────
+    var hasActiveTrip by mutableStateOf(false)
+        private set
+    var activeTripData by mutableStateOf<com.rydius.mobile.data.model.TripData?>(null)
+        private set
+    var activeTripChecked by mutableStateOf(false)
+        private set
+
+    init {
+        checkForActiveTrip()
+    }
+
+    private fun checkForActiveTrip() {
+        viewModelScope.launch {
+            tripRepo.getActiveTrip().onSuccess { response ->
+                val trip = response.trip
+                if (trip != null) {
+                    hasActiveTrip = true
+                    activeTripData = trip
+                }
+            }
+            activeTripChecked = true
+        }
+    }
+
+    fun dismissActiveTrip() {
+        hasActiveTrip = false
+        activeTripData = null
+    }
 
     // ── Role ────────────────────────────────────────────────
     var selectedRole by mutableStateOf("rider") // "rider" or "driver"
@@ -168,9 +199,12 @@ class HomeViewModel : ViewModel() {
         private set
     var departureTime by mutableStateOf("Now")
         private set
+    var departureDisplayText by mutableStateOf("Now")
+        private set
 
-    fun setSeats(n: Int) { seats = n.coerceIn(1, 4) }
+    fun setSeats(n: Int) { seats = n.coerceIn(1, 6) }
     fun setDepartureTime(t: String) { departureTime = t }
+    fun setDepartureDisplayText(t: String) { departureDisplayText = t }
 
     // ── Quick tags ──────────────────────────────────────────
     fun applyQuickTag(tag: String) {

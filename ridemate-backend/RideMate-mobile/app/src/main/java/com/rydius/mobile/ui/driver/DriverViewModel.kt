@@ -47,13 +47,9 @@ class DriverViewModel : ViewModel() {
     var searchStatusText by mutableStateOf("Setting up your trip...")
         private set
 
-    // Match dialog
-    var showMatchDialog by mutableStateOf(false)
-        private set
-    var selectedMatch by mutableStateOf<MatchData?>(null)
-        private set
-
     var tripCancelled by mutableStateOf(false)
+        private set
+    var tripCompleted by mutableStateOf(false)
         private set
 
     private var initialized = false
@@ -167,22 +163,11 @@ class DriverViewModel : ViewModel() {
     }
 
     // ── Accept / Decline ────────────────────────────────────
-    fun showRequestDialog(match: MatchData) {
-        selectedMatch = match
-        showMatchDialog = true
-    }
-
-    fun dismissMatchDialog() {
-        showMatchDialog = false
-        selectedMatch = null
-    }
-
     fun acceptMatch(matchId: Int) {
         viewModelScope.launch {
             tripRepo.updateMatchStatus(matchId, Constants.STATUS_ACCEPTED).fold(
                 onSuccess = {
                     pendingRequests = pendingRequests.filter { it.id != matchId }
-                    dismissMatchDialog()
                 },
                 onFailure = { errorMessage = it.message }
             )
@@ -194,7 +179,6 @@ class DriverViewModel : ViewModel() {
             tripRepo.updateMatchStatus(matchId, Constants.STATUS_REJECTED).fold(
                 onSuccess = {
                     pendingRequests = pendingRequests.filter { it.id != matchId }
-                    dismissMatchDialog()
                 },
                 onFailure = { errorMessage = it.message }
             )
@@ -212,6 +196,23 @@ class DriverViewModel : ViewModel() {
                     socketManager.off("passenger-request")
                     socketManager.leaveTrip()
                     onCancelled()
+                },
+                onFailure = { errorMessage = it.message }
+            )
+        }
+    }
+
+    // ── Complete trip ───────────────────────────────────────
+    fun completeTrip(onCompleted: () -> Unit) {
+        val id = tripId ?: return
+        viewModelScope.launch {
+            tripRepo.completeTrip(id).fold(
+                onSuccess = {
+                    tripCompleted = true
+                    searchingPassengers = false
+                    socketManager.off("passenger-request")
+                    socketManager.leaveTrip()
+                    onCompleted()
                 },
                 onFailure = { errorMessage = it.message }
             )

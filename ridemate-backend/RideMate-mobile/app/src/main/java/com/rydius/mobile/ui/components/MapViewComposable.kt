@@ -81,6 +81,10 @@ fun MapViewComposable(
                     // Draw route polyline via GeoJSON LineString
                     if (decodedPoints.isNotEmpty()) {
                         try {
+                            // Remove existing sources/layers to prevent duplicates
+                            try { style.removeLayer("route-layer") } catch (_: Exception) {}
+                            try { style.removeSource("route-source") } catch (_: Exception) {}
+
                             val coords = decodedPoints.joinToString(",") { (lat, lng) ->
                                 "[$lng,$lat]"
                             }
@@ -132,6 +136,10 @@ private fun addCircleMarker(
     color: String
 ) {
     try {
+        // Remove existing to prevent duplicates
+        try { style.removeLayer("circle-$id") } catch (_: Exception) {}
+        try { style.removeSource("marker-$id") } catch (_: Exception) {}
+
         val geoJson = """{"type":"Feature","geometry":{"type":"Point","coordinates":[$lng,$lat]}}"""
         style.addSource(GeoJsonSource("marker-$id", geoJson))
         val layer = CircleLayer("circle-$id", "marker-$id")

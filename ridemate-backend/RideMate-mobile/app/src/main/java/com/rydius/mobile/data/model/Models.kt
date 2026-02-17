@@ -262,7 +262,7 @@ data class TripRequestsResponse(
 )
 
 data class RouteSegmentResponse(
-    val segment: List<List<Double>>? = null,
+    @SerializedName("routeSegment")  val segment: List<List<Double>>? = null,
     @SerializedName("pickup_point")  val pickupPoint: LatLng? = null,
     @SerializedName("dropoff_point") val dropoffPoint: LatLng? = null
 )

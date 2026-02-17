@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rydius.mobile.RideMateApp
 import com.rydius.mobile.ui.auth.AuthViewModel
 import com.rydius.mobile.ui.theme.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +50,12 @@ fun ProfileScreen(
         .mapNotNull { it.firstOrNull()?.uppercase() }
         .joinToString("")
         .ifEmpty { "U" }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val comingSoon: () -> Unit = {
+        scope.launch { snackbarHostState.showSnackbar("Coming soon!") }
+    }
 
     // Sign-out confirmation
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -71,6 +78,7 @@ fun ProfileScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {},
@@ -332,6 +340,7 @@ fun ProfileScreen(
                         icon = Icons.Default.Shield,
                         title = "Safety",
                         subtitle = "Emergency contacts & trusted contacts",
+                        onClick = comingSoon,
                         iconTint = Success
                     )
                     MenuDivider()
@@ -339,6 +348,7 @@ fun ProfileScreen(
                         icon = Icons.Default.Verified,
                         title = "Verify Organization",
                         subtitle = "Get a verified badge",
+                        onClick = comingSoon,
                         iconTint = Info
                     )
                 }
@@ -359,6 +369,7 @@ fun ProfileScreen(
                         icon = Icons.Default.AccountBalanceWallet,
                         title = "Transactions",
                         subtitle = "View payment history",
+                        onClick = comingSoon,
                         iconTint = Warning
                     )
                     MenuDivider()
@@ -366,6 +377,7 @@ fun ProfileScreen(
                         icon = Icons.Default.WorkspacePremium,
                         title = "Buy Prime",
                         subtitle = "Unlock premium features",
+                        onClick = comingSoon,
                         badgeText = "NEW",
                         iconTint = Warning
                     )
@@ -374,6 +386,7 @@ fun ProfileScreen(
                         icon = Icons.Default.CardGiftcard,
                         title = "Invite & Earn",
                         subtitle = "Share and earn rewards",
+                        onClick = comingSoon,
                         iconTint = Success
                     )
                 }
@@ -394,6 +407,7 @@ fun ProfileScreen(
                         icon = Icons.AutoMirrored.Filled.HelpCenter,
                         title = "Help & FAQ",
                         subtitle = "Get support",
+                        onClick = comingSoon,
                         iconTint = Info
                     )
                     MenuDivider()
@@ -401,6 +415,7 @@ fun ProfileScreen(
                         icon = Icons.Default.ContactSupport,
                         title = "Contact Us",
                         subtitle = "Reach our team",
+                        onClick = comingSoon,
                         iconTint = Secondary
                     )
                     MenuDivider()
@@ -408,6 +423,7 @@ fun ProfileScreen(
                         icon = Icons.Default.Settings,
                         title = "Settings",
                         subtitle = "App preferences",
+                        onClick = comingSoon,
                         iconTint = TextSecondary
                     )
                 }

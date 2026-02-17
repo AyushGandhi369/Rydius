@@ -290,6 +290,8 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_trip_status ON matches(trip_id, status)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_request_status ON matches(ride_request_id, status)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_matches_trip_status_created ON matches(trip_id, status, created_at DESC)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_matches_request_status_created ON matches(ride_request_id, status, created_at DESC)`);
 
     // Create fuel_config table (admin-editable fuel prices)
     db.run(`CREATE TABLE IF NOT EXISTS fuel_config (
@@ -307,10 +309,15 @@ db.serialize(() => {
             console.error('Failed to add available_seats column:', err.message);
         }
     });
-    db.run(`ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`, (err) => {
+    db.run(`ALTER TABLE users ADD COLUMN updated_at DATETIME`, (err) => {
         if (err && !String(err.message || '').includes('duplicate column name')) {
             console.error('Failed to add users.updated_at column:', err.message);
         }
+        db.run(`UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL`, (fillErr) => {
+            if (fillErr && !String(fillErr.message || '').includes('no such column')) {
+                console.error('Failed to backfill users.updated_at:', fillErr.message);
+            }
+        });
     });
 
     // ── User profile columns migration ──────────────────────
@@ -510,6 +517,33 @@ function decodePolyline(encoded) {
     return points;
 }
 
+const decodedRouteCache = new Map();
+const MAX_DECODED_ROUTE_CACHE_SIZE = 500;
+
+function getDecodedRoutePoints(routePolyline) {
+    if (typeof routePolyline !== 'string' || !routePolyline) {
+        return [];
+    }
+
+    const cached = decodedRouteCache.get(routePolyline);
+    if (cached) {
+        // Refresh insertion order to behave as a simple LRU cache.
+        decodedRouteCache.delete(routePolyline);
+        decodedRouteCache.set(routePolyline, cached);
+        return cached;
+    }
+
+    const decoded = decodePolyline(routePolyline);
+    if (decodedRouteCache.size >= MAX_DECODED_ROUTE_CACHE_SIZE) {
+        const oldestKey = decodedRouteCache.keys().next().value;
+        if (oldestKey !== undefined) {
+            decodedRouteCache.delete(oldestKey);
+        }
+    }
+    decodedRouteCache.set(routePolyline, decoded);
+    return decoded;
+}
+
 // Calculate distance between two points using Haversine formula
 function calculateDistance(lat1, lng1, lat2, lng2) {
     const R = 6371; // Earth's radius in kilometers
@@ -551,7 +585,7 @@ function findClosestPointOnRoute(routePoints, targetLat, targetLng) {
 function checkRouteMatch(routePolyline, pickupLat, pickupLng, dropoffLat, dropoffLng, threshold) {
     try {
         // Decode the route polyline
-        const routePoints = decodePolyline(routePolyline);
+        const routePoints = getDecodedRoutePoints(routePolyline);
 
         // Find closest point on route to pickup location
         const pickupMatch = findClosestPointOnRoute(routePoints, pickupLat, pickupLng);
@@ -1393,7 +1427,7 @@ app.get('/api/trips/:id/route-segment', requireAuth, (req, res) => {
 
         try {
             // Decode the full route
-            const fullRoute = decodePolyline(trip.route_polyline);
+            const fullRoute = getDecodedRoutePoints(trip.route_polyline);
 
             // Parse coordinates
             const pickupPoint = {
@@ -1615,6 +1649,47 @@ app.put('/api/trips/:id/cancel', requireAuth, (req, res) => {
     });
 });
 
+// Complete a trip (driver marks ride as done)
+app.put('/api/trips/:id/complete', requireAuth, (req, res) => {
+    const tripId = req.params.id;
+
+    const checkSql = `SELECT driver_id FROM trips WHERE id = ? AND status = 'active'`;
+    db.get(checkSql, [tripId], (err, trip) => {
+        if (err) {
+            return res.status(500).json({ message: 'Error checking trip' });
+        }
+        if (!trip) {
+            return res.status(404).json({ message: 'Active trip not found' });
+        }
+        if (trip.driver_id !== req.session.userId) {
+            return res.status(403).json({ message: 'You can only complete your own trips' });
+        }
+
+        const updateSql = `UPDATE trips SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+        db.run(updateSql, [tripId], function (err) {
+            if (err) {
+                return res.status(500).json({ message: 'Error completing trip' });
+            }
+
+            // Mark accepted matches as completed too
+            const updateMatchesSql = `UPDATE matches SET status = 'completed', updated_at = CURRENT_TIMESTAMP 
+                                     WHERE trip_id = ? AND status = 'accepted'`;
+            db.run(updateMatchesSql, [tripId], (matchErr) => {
+                if (matchErr) console.error('Error updating matches:', matchErr);
+            });
+
+            // Reject any remaining pending matches
+            const rejectPendingSql = `UPDATE matches SET status = 'rejected', updated_at = CURRENT_TIMESTAMP 
+                                     WHERE trip_id = ? AND status = 'pending'`;
+            db.run(rejectPendingSql, [tripId], (pendErr) => {
+                if (pendErr) console.error('Error rejecting pending:', pendErr);
+            });
+
+            res.json({ message: 'Trip completed successfully' });
+        });
+    });
+});
+
 // ============= PASSENGER ENDPOINTS =============
 
 // Create a ride request (passenger looking for ride)
@@ -1688,16 +1763,17 @@ app.get('/api/available-drivers', requireAuth, (req, res) => {
 
     console.log(`Distance: ${distKm}km, Threshold: ${threshold}m`);
 
-    // Get all active trips
+    // Get all active trips (exclude user's own trips)
     const sql = `SELECT t.*, u.name as driver_name, u.email as driver_email
                  FROM trips t 
                  JOIN users u ON t.driver_id = u.id 
                  WHERE t.status = 'active' 
+                 AND t.driver_id != ?
                  AND datetime(t.departure_time) > datetime('now')
                  AND t.route_polyline IS NOT NULL
                  AND t.route_polyline != ''`;
 
-    db.all(sql, [], (err, trips) => {
+    db.all(sql, [req.session.userId], (err, trips) => {
         if (err) {
             console.error('Error finding drivers:', err);
             return res.status(500).json({ message: 'Error finding drivers' });
@@ -1944,6 +2020,20 @@ app.put('/api/matches/:id/status', requireAuth, (req, res) => {
             }
 
             console.log(`Match ${req.params.id} ${status} by user ${req.session.userId}`);
+
+            // Emit socket event to notify passenger of match status change
+            try {
+                if (match.passenger_id) {
+                    io.emit('match-status-update', {
+                        matchId: parseInt(req.params.id),
+                        status: status,
+                        passengerId: match.passenger_id,
+                        driverId: match.driver_id
+                    });
+                }
+            } catch (socketErr) {
+                console.error('Socket emit error:', socketErr);
+            }
 
             const respondSuccess = () => {
                 res.json({

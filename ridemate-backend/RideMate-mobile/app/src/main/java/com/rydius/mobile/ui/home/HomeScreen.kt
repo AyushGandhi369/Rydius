@@ -1,6 +1,8 @@
 package com.rydius.mobile.ui.home
 
 import android.Manifest
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +33,9 @@ import com.rydius.mobile.ui.components.BottomNavBar
 import com.rydius.mobile.ui.components.LocationSearchBar
 import com.rydius.mobile.ui.components.RoleSelector
 import com.rydius.mobile.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,6 +127,75 @@ fun HomeScreen(
 
                 // ── Role Selector ──────────────────────────────────
                 item {
+                    // Active trip recovery banner
+                    if (vm.hasActiveTrip && vm.activeTripData != null) {
+                        val trip = vm.activeTripData!!
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .padding(top = 16.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(4.dp),
+                            colors = CardDefaults.cardColors(containerColor = Secondary.copy(alpha = 0.08f))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.DirectionsCar,
+                                        contentDescription = null,
+                                        tint = Secondary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "You have an active trip",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp
+                                        )
+                                        Text(
+                                            "${trip.startLocation} → ${trip.endLocation}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TextSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = {
+                                            onNavigateToDriver(
+                                                trip.startLocation,
+                                                trip.endLocation,
+                                                trip.startLocationLat,
+                                                trip.startLocationLng,
+                                                trip.endLocationLat,
+                                                trip.endLocationLng,
+                                                trip.availableSeats,
+                                                trip.departureTime ?: "Now"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Secondary)
+                                    ) {
+                                        Text("Resume Trip", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { vm.dismissActiveTrip() },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Dismiss", fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     RoleSelector(
                         selectedRole = vm.selectedRole,
                         onRoleChange = { vm.setRole(it) },
@@ -266,9 +340,9 @@ fun HomeScreen(
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                (1..4).forEach { n ->
+                                (1..6).forEach { n ->
                                     val selected = vm.seats == n
                                     val bgColor by animateColorAsState(
                                         if (selected) Secondary else SurfaceLight,
@@ -276,7 +350,7 @@ fun HomeScreen(
                                     )
                                     Box(
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(36.dp)
                                             .clip(CircleShape)
                                             .background(bgColor)
                                             .clickable { vm.setSeats(n) },
@@ -296,10 +370,54 @@ fun HomeScreen(
 
                 // ── Departure time ─────────────────────────────────
                 item {
+                    var showTimePicker by remember { mutableStateOf(false) }
+
+                    if (showTimePicker) {
+                        val calendar = Calendar.getInstance()
+                        val dateFormat = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault())
+                        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, day ->
+                                calendar.set(Calendar.YEAR, year)
+                                calendar.set(Calendar.MONTH, month)
+                                calendar.set(Calendar.DAY_OF_MONTH, day)
+
+                                TimePickerDialog(
+                                    context,
+                                    { _, hour, minute ->
+                                        calendar.set(Calendar.HOUR_OF_DAY, hour)
+                                        calendar.set(Calendar.MINUTE, minute)
+                                        if (calendar.timeInMillis <= System.currentTimeMillis() + 60_000) {
+                                            vm.setDepartureTime("Now")
+                                        } else {
+                                            vm.setDepartureTime(isoFormat.format(calendar.time))
+                                            vm.setDepartureDisplayText(dateFormat.format(calendar.time))
+                                        }
+                                        showTimePicker = false
+                                    },
+                                    calendar.get(Calendar.HOUR_OF_DAY),
+                                    calendar.get(Calendar.MINUTE),
+                                    false
+                                ).apply {
+                                    setOnCancelListener { showTimePicker = false }
+                                }.show()
+                            },
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH),
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                        ).apply {
+                            datePicker.minDate = System.currentTimeMillis()
+                            setOnCancelListener { showTimePicker = false }
+                        }.show()
+                    }
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 4.dp),
+                            .padding(horizontal = 20.dp, vertical = 4.dp)
+                            .clickable { showTimePicker = true },
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
@@ -317,9 +435,16 @@ fun HomeScreen(
                             Text("Departure", fontWeight = FontWeight.Medium)
                             Spacer(modifier = Modifier.weight(1f))
                             Text(
-                                vm.departureTime,
+                                vm.departureDisplayText,
                                 color = Secondary,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Change time",
+                                modifier = Modifier.size(16.dp),
+                                tint = TextSecondary
                             )
                         }
                     }

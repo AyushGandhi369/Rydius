@@ -5,16 +5,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rydius.mobile.RideMateApp
 import com.rydius.mobile.data.model.*
 import com.rydius.mobile.data.repository.MapRepository
 import com.rydius.mobile.data.repository.TripRepository
 import com.rydius.mobile.util.LocationHelper
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class PassengerViewModel : ViewModel() {
 
     private val tripRepo = TripRepository()
     private val mapRepo = MapRepository()
+    private val socketManager = RideMateApp.instance.socketManager
 
     // ── State ───────────────────────────────────────────────
     var isLoading by mutableStateOf(true)
@@ -47,8 +50,16 @@ class PassengerViewModel : ViewModel() {
         private set
     var matchAccepted by mutableStateOf(false)
         private set
+    var matchRejected by mutableStateOf(false)
+        private set
+    var acceptedDriverName by mutableStateOf<String?>(null)
+        private set
+    var acceptedFare by mutableStateOf<Double?>(null)
+        private set
 
     private var initialized = false
+    private var pollingActive = false
+    private var sentMatchId by mutableStateOf<Int?>(null)
 
     // ── Initialize ──────────────────────────────────────────
     fun initialize(
@@ -180,6 +191,8 @@ class PassengerViewModel : ViewModel() {
                 onSuccess = { response ->
                     if (response.matchId != null) {
                         matchSent = true
+                        sentMatchId = response.matchId
+                        startMatchStatusPolling()
                     } else {
                         errorMessage = response.message ?: "Failed to send match request"
                         selectedDriverTripId = null
@@ -195,6 +208,53 @@ class PassengerViewModel : ViewModel() {
 
     fun clearError() { errorMessage = null }
 
+    // ── Match status polling ────────────────────────────────
+    private fun startMatchStatusPolling() {
+        if (pollingActive) return
+        pollingActive = true
+        viewModelScope.launch {
+            while (pollingActive && matchSent && !matchAccepted && !matchRejected) {
+                delay(5_000) // Poll every 5 seconds
+                checkMatchStatus()
+            }
+        }
+    }
+
+    private suspend fun checkMatchStatus() {
+        tripRepo.getActiveMatches().onSuccess { matches ->
+            val ourMatch = matches.find { it.id == sentMatchId }
+            if (ourMatch != null) {
+                when (ourMatch.status) {
+                    "accepted" -> {
+                        matchAccepted = true
+                        acceptedDriverName = ourMatch.driverName
+                        acceptedFare = ourMatch.fare
+                        pollingActive = false
+                    }
+                    "rejected" -> {
+                        matchRejected = true
+                        matchSent = false
+                        selectedDriverTripId = null
+                        sentMatchId = null
+                        pollingActive = false
+                    }
+                }
+            } else if (sentMatchId != null) {
+                // Match not found in active list — likely rejected
+                matchRejected = true
+                matchSent = false
+                selectedDriverTripId = null
+                sentMatchId = null
+                pollingActive = false
+            }
+        }
+    }
+
+    fun resetAfterRejection() {
+        matchRejected = false
+        errorMessage = null
+    }
+
     fun retry(
         startLocation: String, endLocation: String,
         startLat: Double, startLng: Double,
@@ -203,6 +263,17 @@ class PassengerViewModel : ViewModel() {
     ) {
         initialized = false
         errorMessage = null
+        matchSent = false
+        matchAccepted = false
+        matchRejected = false
+        sentMatchId = null
+        pollingActive = false
+        selectedDriverTripId = null
         initialize(startLocation, endLocation, startLat, startLng, endLat, endLng, seats, departureTime)
+    }
+
+    override fun onCleared() {
+        pollingActive = false
+        super.onCleared()
     }
 }

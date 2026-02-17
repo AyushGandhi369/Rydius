@@ -178,7 +178,7 @@ fun PassengerConfirmationScreen(
             }
 
             // Match sent confirmation
-            if (vm.matchSent) {
+            if (vm.matchSent && !vm.matchAccepted) {
                 item {
                     Card(
                         modifier = Modifier
@@ -191,12 +191,98 @@ fun PassengerConfirmationScreen(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Success)
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                                color = Secondary
+                            )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text("Request Sent!", fontWeight = FontWeight.Bold, color = Success)
                                 Text(
-                                    "Waiting for the driver to accept your request.",
+                                    "Waiting for the driver to accept your request...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Match ACCEPTED — ride confirmed!
+            if (vm.matchAccepted) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Success.copy(alpha = 0.12f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle, contentDescription = null,
+                                tint = Success, modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "Ride Confirmed!",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp,
+                                color = Success
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            vm.acceptedDriverName?.let { name ->
+                                Text(
+                                    "Driver: $name",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            vm.acceptedFare?.let { fare ->
+                                Text(
+                                    "Fare: \u20B9%.0f".format(fare),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = onNavigateHome,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Success)
+                            ) {
+                                Text("Done", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Match REJECTED — driver declined
+            if (vm.matchRejected) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Error.copy(alpha = 0.08f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Cancel, contentDescription = null, tint = Error)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Request Declined", fontWeight = FontWeight.Bold, color = Error)
+                                Text(
+                                    "The driver declined your request. Try another driver below.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TextSecondary
                                 )

@@ -116,7 +116,8 @@ fun DriverCard(
                     Icon(Icons.Default.NearMe, contentDescription = null, tint = Info, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        "%.1f km away".format(driver.pickupDistance),
+                        if (driver.pickupDistance < 1000) "${driver.pickupDistance.toInt()} m away"
+                        else "%.1f km away".format(driver.pickupDistance / 1000.0),
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )

@@ -22,6 +22,9 @@ class TripRepository {
     suspend fun cancelTrip(id: Int): Result<ApiResponse> =
         safeApiCall { api.cancelTrip(id) }
 
+    suspend fun completeTrip(id: Int): Result<ApiResponse> =
+        safeApiCall { api.completeTrip(id) }
+
     suspend fun createRideRequest(request: CreateRideRequestRequest): Result<CreateRideRequestResponse> =
         safeApiCall { api.createRideRequest(request) }
 

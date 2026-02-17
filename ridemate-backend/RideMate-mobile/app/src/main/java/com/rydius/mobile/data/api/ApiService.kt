@@ -75,6 +75,9 @@ interface ApiService {
     @PUT("api/trips/{id}/cancel")
     suspend fun cancelTrip(@Path("id") id: Int): Response<ApiResponse>
 
+    @PUT("api/trips/{id}/complete")
+    suspend fun completeTrip(@Path("id") id: Int): Response<ApiResponse>
+
     // ── Ride requests (passenger) ───────────────────────────────
     @POST("api/ride-requests")
     suspend fun createRideRequest(@Body body: CreateRideRequestRequest): Response<CreateRideRequestResponse>
