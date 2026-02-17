@@ -851,7 +851,10 @@
 
             // Fetch Ola Maps API key from server
             try {
-                const configResp = await fetch('/api/config');
+                const configResp = await fetch('/api/config', { credentials: 'include' });
+                if (!configResp.ok) {
+                    throw new Error(`Config fetch failed: ${configResp.status}`);
+                }
                 const config = await configResp.json();
                 OLA_MAPS_API_KEY = config.olaMapsApiKey || '';
             } catch (e) {

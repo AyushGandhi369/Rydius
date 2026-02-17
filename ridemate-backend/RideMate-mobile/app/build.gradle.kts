@@ -1,3 +1,5 @@
+import org.gradle.api.GradleException
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -28,6 +30,12 @@ android {
         release {
             val baseUrl = project.findProperty("RIDEMATE_BASE_URL")?.toString()
                 ?: "https://your-production-domain.com"
+            if (baseUrl.contains("your-production-domain.com")) {
+                throw GradleException("RIDEMATE_BASE_URL must be set to your production HTTPS URL for release builds.")
+            }
+            if (!baseUrl.startsWith("https://")) {
+                throw GradleException("Release RIDEMATE_BASE_URL must use https://")
+            }
             buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
             isMinifyEnabled = true
             proguardFiles(

@@ -2,14 +2,17 @@ package com.rydius.mobile
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
+import android.webkit.WebSettings
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -51,7 +54,8 @@ class MainActivity : AppCompatActivity() {
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-        geolocationCallback?.invoke(geolocationOrigin, granted, false)
+        val isTrustedOrigin = isTrustedOrigin(geolocationOrigin)
+        geolocationCallback?.invoke(geolocationOrigin, granted && isTrustedOrigin, false)
         geolocationOrigin = null
         geolocationCallback = null
     }
@@ -71,15 +75,21 @@ class MainActivity : AppCompatActivity() {
         settings.allowContentAccess = true
         settings.allowFileAccess = false
         settings.databaseEnabled = true
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.setSupportZoom(false)
         settings.builtInZoomControls = false
         settings.displayZoomControls = false
         settings.loadsImagesAutomatically = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.javaScriptCanOpenWindowsAutomatically = true
+        settings.setSupportMultipleWindows(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            settings.safeBrowsingEnabled = true
+        }
 
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
@@ -87,7 +97,11 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?
             ): Boolean {
                 val targetUri = request?.url ?: return false
-                return handleExternalSchemes(targetUri) || handleExternalDomains(targetUri)
+                if (handleExternalSchemes(targetUri)) return true
+                if (!isTrustedHttpUri(targetUri)) {
+                    return openExternal(targetUri)
+                }
+                return false
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
@@ -127,11 +141,22 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPermissionRequest(request: PermissionRequest?) {
                 runOnUiThread {
-                    val originHost = runCatching { URI(request?.origin.toString()).host }.getOrNull()
+                    val safeRequest = request ?: return@runOnUiThread
+                    val originHost = runCatching { URI(safeRequest.origin.toString()).host }.getOrNull()
+                    val allowedResources = setOf(
+                        PermissionRequest.RESOURCE_AUDIO_CAPTURE,
+                        PermissionRequest.RESOURCE_VIDEO_CAPTURE
+                    )
+
                     if (originHost != null && originHost == trustedHost) {
-                        request?.grant(request.resources)
+                        val granted = safeRequest.resources.filter { it in allowedResources }.toTypedArray()
+                        if (granted.isNotEmpty()) {
+                            safeRequest.grant(granted)
+                        } else {
+                            safeRequest.deny()
+                        }
                     } else {
-                        request?.deny()
+                        safeRequest.deny()
                     }
                 }
             }
@@ -158,6 +183,11 @@ class MainActivity : AppCompatActivity() {
                 origin: String?,
                 callback: GeolocationPermissions.Callback?
             ) {
+                if (!isTrustedOrigin(origin)) {
+                    callback?.invoke(origin, false, false)
+                    return
+                }
+
                 if (hasLocationPermission()) {
                     callback?.invoke(origin, true, false)
                     return
@@ -201,6 +231,10 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         filePathCallback?.onReceiveValue(null)
         filePathCallback = null
+        webView.stopLoading()
+        webView.webChromeClient = null
+        webView.webViewClient = null
+        webView.destroy()
         super.onDestroy()
     }
 
@@ -224,30 +258,33 @@ class MainActivity : AppCompatActivity() {
             return false
         }
 
-        return runCatching {
-            startActivity(Intent(Intent.ACTION_VIEW, uri))
-            true
-        }.getOrDefault(false)
+        return openExternal(uri)
     }
 
-    private fun handleExternalDomains(uri: Uri): Boolean {
-        val host = uri.host ?: return false
-        if (host == trustedHost) {
+    private fun isTrustedOrigin(origin: String?): Boolean {
+        val originHost = runCatching { URI(origin ?: "").host }.getOrNull() ?: return false
+        return originHost.equals(trustedHost, ignoreCase = true)
+    }
+
+    private fun isTrustedHttpUri(uri: Uri): Boolean {
+        val scheme = uri.scheme?.lowercase() ?: return false
+        if (scheme != "https" && scheme != "http") {
             return false
         }
 
-        val isMapsLink = host.contains("maps", ignoreCase = true)
-        val isCommonExternal = host.contains("wa.me", ignoreCase = true) ||
-            host.contains("whatsapp", ignoreCase = true) ||
-            host.contains("youtube", ignoreCase = true)
+        val host = uri.host ?: return false
+        return host.equals(trustedHost, ignoreCase = true)
+    }
 
-        if (isMapsLink || isCommonExternal) {
-            return runCatching {
-                startActivity(Intent(Intent.ACTION_VIEW, uri))
-                true
-            }.getOrDefault(false)
+    private fun openExternal(uri: Uri): Boolean {
+        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+            addCategory(Intent.CATEGORY_BROWSABLE)
         }
-
-        return false
+        return try {
+            startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        }
     }
 }

@@ -12,10 +12,34 @@ const { calculateCostSharing, DEFAULT_FUEL_PRICES } = require('./cost-sharing');
 
 const app = express();
 const server = createServer(app);
+const defaultAllowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:8081',
+    'http://localhost:19006'
+];
+const allowedOrigins = new Set(
+    (process.env.ALLOWED_ORIGINS || defaultAllowedOrigins.join(','))
+        .split(',')
+        .map(origin => origin.trim())
+        .filter(Boolean)
+);
+
+function isAllowedOrigin(origin) {
+    if (!origin) return true;
+    return allowedOrigins.has(origin);
+}
+
 const io = new Server(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: (origin, callback) => {
+            if (isAllowedOrigin(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error('Socket origin not allowed'));
+            }
+        },
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 const port = process.env.PORT || 3000;
@@ -75,10 +99,10 @@ app.use(express.json());
 
 // CORS middleware for Expo web support
 app.use((req, res, next) => {
-    const allowedOrigins = ['http://localhost:8081', 'http://localhost:19006', 'http://localhost:3000'];
     const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
+    if (origin && isAllowedOrigin(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -90,6 +114,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, '..')));
+app.set('trust proxy', 1);
 
 // Session configuration
 app.use(session({
@@ -631,9 +656,17 @@ function requireAuth(req, res, next) {
 // ============= CONFIG ENDPOINT =============
 
 // Serve Ola Maps API key to frontend
-app.get('/api/config', (req, res) => {
+app.get('/api/config', requireAuth, (req, res) => {
+    const allowClientMapsKey = process.env.ALLOW_CLIENT_MAPS_KEY !== 'false';
+    const origin = req.headers.origin;
+
+    if (origin && !isAllowedOrigin(origin)) {
+        return res.status(403).json({ message: 'Origin not allowed' });
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
     res.json({
-        olaMapsApiKey: process.env.OLA_MAPS_API_KEY || ''
+        olaMapsApiKey: allowClientMapsKey ? (process.env.OLA_MAPS_API_KEY || '') : ''
     });
 });
 
