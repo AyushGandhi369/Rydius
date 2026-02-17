@@ -185,7 +185,7 @@ fun DriverConfirmationScreen(
             vm.costInfo?.let { cost ->
                 item {
                     CostSharingCard(
-                        costSharing = cost,
+                        costData = cost,
                         isDriver = true,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )

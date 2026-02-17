@@ -129,6 +129,15 @@ class AuthViewModel : ViewModel() {
     }
 
     fun clearError() { errorMessage = null }
+
+    fun resetSignup() {
+        signupStep = SignupStep.FORM
+        otpEmail = ""
+        errorMessage = null
+        successMessage = null
+    }
+
+    fun clearError() { errorMessage = null }
     fun clearSuccess() { successMessage = null }
     fun resetSignup() { signupStep = SignupStep.FORM; otpEmail = "" }
 }

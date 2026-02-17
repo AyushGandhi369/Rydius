@@ -165,7 +165,7 @@ fun PassengerConfirmationScreen(
             vm.costInfo?.let { cost ->
                 item {
                     CostSharingCard(
-                        costSharing = cost,
+                        costData = cost,
                         isDriver = false,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )

@@ -16,7 +16,7 @@ interface ApiService {
     @POST("api/login")
     suspend fun login(@Body body: LoginRequest): Response<LoginResponse>
 
-    @POST("api/auth/logout")
+    @POST("api/logout")
     suspend fun logout(): Response<ApiResponse>
 
     @GET("api/auth/status")
