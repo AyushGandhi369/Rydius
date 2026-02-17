@@ -71,6 +71,7 @@ object LocationHelper {
             var result = 0
             var b: Int
             do {
+                if (index >= encoded.length) return points
                 b = encoded[index++].code - 63
                 result = result or ((b and 0x1F) shl shift)
                 shift += 5
@@ -80,6 +81,7 @@ object LocationHelper {
             shift = 0
             result = 0
             do {
+                if (index >= encoded.length) return points
                 b = encoded[index++].code - 63
                 result = result or ((b and 0x1F) shl shift)
                 shift += 5

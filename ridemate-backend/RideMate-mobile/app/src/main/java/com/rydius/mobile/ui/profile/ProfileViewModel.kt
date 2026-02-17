@@ -13,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.rydius.mobile.RideMateApp
 import com.rydius.mobile.data.model.*
 import com.rydius.mobile.data.repository.AuthRepository
+import com.rydius.mobile.data.repository.TripRepository
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -20,6 +21,7 @@ import java.io.InputStream
 class ProfileViewModel : ViewModel() {
 
     private val repo = AuthRepository()
+    private val tripRepo = TripRepository()
     private val session = RideMateApp.instance.sessionManager
 
     // ── Profile data ────────────────────────────────────────────
@@ -32,6 +34,12 @@ class ProfileViewModel : ViewModel() {
     var successMessage by mutableStateOf<String?>(null)
         private set
     var isSaving by mutableStateOf(false)
+        private set
+
+    // ── Rating ──────────────────────────────────────────────────
+    var ratingAverage by mutableStateOf<Double?>(null)
+        private set
+    var ratingCount by mutableIntStateOf(0)
         private set
 
     // ── Profile completion ──────────────────────────────────────
@@ -96,6 +104,17 @@ class ProfileViewModel : ViewModel() {
                 },
                 onFailure = { /* silent */ }
             )
+            // Fetch user rating
+            val userId = session.userId
+            if (userId > 0) {
+                tripRepo.getUserRating(userId).fold(
+                    onSuccess = { r ->
+                        ratingAverage = r.average
+                        ratingCount = r.count
+                    },
+                    onFailure = { /* silent */ }
+                )
+            }
             isLoading = false
         }
     }
@@ -151,7 +170,13 @@ class ProfileViewModel : ViewModel() {
             isUploadingPhoto = true
             error = null
             try {
-                val bitmap = BitmapFactory.decodeStream(inputStream)
+                val bitmap = inputStream.use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                }
+                if (bitmap == null) {
+                    error = "Invalid image"
+                    return@launch
+                }
                 // Scale down if too large
                 val maxDim = 512
                 val scaled = if (bitmap.width > maxDim || bitmap.height > maxDim) {
@@ -178,8 +203,9 @@ class ProfileViewModel : ViewModel() {
                 )
             } catch (e: Exception) {
                 error = "Failed to process image"
+            } finally {
+                isUploadingPhoto = false
             }
-            isUploadingPhoto = false
         }
     }
 

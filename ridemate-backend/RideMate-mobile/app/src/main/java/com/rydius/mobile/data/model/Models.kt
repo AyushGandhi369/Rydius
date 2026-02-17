@@ -22,6 +22,16 @@ data class LoginRequest(
     val password: String
 )
 
+data class ForgotPasswordRequest(
+    val email: String
+)
+
+data class ResetPasswordRequest(
+    val email: String,
+    val otp: String,
+    val newPassword: String
+)
+
 data class CreateTripRequest(
     @SerializedName("start_location")    val startLocation: String,
     @SerializedName("start_lat")         val startLocationLat: Double,
@@ -86,6 +96,12 @@ data class CalculateCostRequest(
     @SerializedName("vehicleType")        val vehicleType: String = "4W",
     @SerializedName("fuelType")           val fuelType: String = "petrol",
     @SerializedName("numberOfPassengers") val numberOfPassengers: Int = 1
+)
+
+data class SubmitRatingRequest(
+    @SerializedName("match_id") val matchId: Int,
+    val rating: Int,
+    val review: String? = null
 )
 
 // ═══════════════════════════════════════════════════════════════
@@ -167,6 +183,22 @@ data class PhoneOtpResponse(
     val success: Boolean = false,
     val message: String? = null,
     @SerializedName("dev_otp") val devOtp: String? = null
+)
+
+data class UserRatingResponse(
+    val average: Double = 0.0,
+    val count: Int = 0
+)
+
+data class RatingCheckResponse(
+    val hasRated: Boolean = false,
+    val rating: RatingData? = null
+)
+
+data class RatingData(
+    val id: Int = 0,
+    val rating: Int = 0,
+    val review: String? = null
 )
 
 data class ConfigResponse(
@@ -279,10 +311,6 @@ data class CreateRideRequestResponse(
     val message: String? = null
 )
 
-data class AvailableDriversResponse(
-    val drivers: List<AvailableDriver>? = null
-)
-
 data class AvailableDriver(
     @SerializedName("id")               val tripId: Int = 0,
     @SerializedName("driver_name")      val driverName: String? = null,
@@ -299,7 +327,12 @@ data class AvailableDriver(
     @SerializedName("start_lat")        val startLat: Double? = null,
     @SerializedName("start_lng")        val startLng: Double? = null,
     @SerializedName("end_lat")          val endLat: Double? = null,
-    @SerializedName("end_lng")          val endLng: Double? = null
+    @SerializedName("end_lng")          val endLng: Double? = null,
+    @SerializedName("is_partial_ride")  val isPartialRide: Boolean = false,
+    @SerializedName("remaining_distance") val remainingDistanceKm: Int = 0,
+    @SerializedName("distance_saved_percentage") val distanceSavedPct: Int = 100,
+    val eta: Int? = null,
+    @SerializedName("available_seats")  val availableSeats: Int? = null
 )
 
 // ── Matches ─────────────────────────────────────────────────────
@@ -377,5 +410,7 @@ data class MyRide(
     @SerializedName("driver_name")       val driverName: String? = null,
     @SerializedName("fare_share")        val fareShare: Double? = null,
     @SerializedName("match_status")      val matchStatus: String? = null,
-    @SerializedName("passenger_count")   val passengerCount: Int? = null
+    @SerializedName("passenger_count")   val passengerCount: Int? = null,
+    @SerializedName("match_id")          val matchId: Int? = null,
+    @SerializedName("driver_user_id")    val driverUserId: Int? = null
 )

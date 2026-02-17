@@ -1,5 +1,7 @@
 package com.rydius.mobile.ui.rides
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +15,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,10 +38,133 @@ fun MyRidesScreen(
     val tabs = listOf("Active", "Completed", "Cancelled")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Rating dialog state
+    var ratingMatchId by remember { mutableIntStateOf(0) }
+    var ratingDriverName by remember { mutableStateOf("") }
+    var showRatingDialog by remember { mutableStateOf(false) }
+    var ratingValue by remember { mutableIntStateOf(0) }
+    var reviewText by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) { vm.loadRides() }
 
+    // Show snackbar on rating success
+    LaunchedEffect(vm.ratingSuccess) {
+        vm.ratingSuccess?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.clearRatingSuccess()
+        }
+    }
+
+    // Rating Dialog
+    if (showRatingDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!vm.isSubmittingRating) {
+                    showRatingDialog = false
+                    ratingValue = 0
+                    reviewText = ""
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text("Rate Your Ride", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "How was your ride with $ratingDriverName?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Star rating
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        for (i in 1..5) {
+                            Icon(
+                                if (i <= ratingValue) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "$i star",
+                                tint = if (i <= ratingValue) Warning else TextSecondary.copy(alpha = 0.3f),
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clickable { ratingValue = i }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        when (ratingValue) {
+                            1 -> "Poor"
+                            2 -> "Fair"
+                            3 -> "Good"
+                            4 -> "Very Good"
+                            5 -> "Excellent"
+                            else -> "Tap a star"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (ratingValue > 0) Warning else TextSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Review text
+                    OutlinedTextField(
+                        value = reviewText,
+                        onValueChange = { reviewText = it },
+                        label = { Text("Review (optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        minLines = 2,
+                        maxLines = 4
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.submitRating(
+                            matchId = ratingMatchId,
+                            rating = ratingValue,
+                            review = reviewText.takeIf { it.isNotBlank() }
+                        ) {
+                            showRatingDialog = false
+                            ratingValue = 0
+                            reviewText = ""
+                        }
+                    },
+                    enabled = ratingValue > 0 && !vm.isSubmittingRating
+                ) {
+                    if (vm.isSubmittingRating) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Submit", fontWeight = FontWeight.SemiBold, color = Primary)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRatingDialog = false
+                        ratingValue = 0
+                        reviewText = ""
+                    },
+                    enabled = !vm.isSubmittingRating
+                ) { Text("Cancel") }
+            }
+        )
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("My Rides") },
@@ -168,7 +294,17 @@ fun MyRidesScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 items(filtered, key = { "${it.id}-${it.userRole}" }) { ride ->
-                                    RideCard(ride)
+                                    RideCard(
+                                        ride = ride,
+                                        isRated = ride.matchId != null && ride.matchId in vm.ratedMatchIds,
+                                        onRate = {
+                                            if (ride.matchId != null) {
+                                                ratingMatchId = ride.matchId
+                                                ratingDriverName = ride.driverName ?: "your driver"
+                                                showRatingDialog = true
+                                            }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -180,7 +316,11 @@ fun MyRidesScreen(
 }
 
 @Composable
-private fun RideCard(ride: MyRide) {
+private fun RideCard(
+    ride: MyRide,
+    isRated: Boolean = false,
+    onRate: () -> Unit = {}
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -289,6 +429,43 @@ private fun RideCard(ride: MyRide) {
                     Icon(Icons.Default.Person, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Driver: ${ride.driverName}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+            }
+
+            // Rate button for completed passenger rides
+            if (ride.status == "completed" && ride.userRole == "passenger" && ride.matchId != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = DividerColor)
+                Spacer(modifier = Modifier.height(8.dp))
+                if (isRated) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.CheckCircle, null,
+                            tint = Success, modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Rated",
+                            color = Success,
+                            fontWeight = FontWeight.Medium,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = onRate,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Warning)
+                    ) {
+                        Icon(Icons.Default.Star, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Rate This Ride", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }

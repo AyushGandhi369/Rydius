@@ -31,6 +31,16 @@ class AuthViewModel : ViewModel() {
 
     enum class SignupStep { FORM, OTP }
 
+    // Password reset flow
+    var resetStep by mutableStateOf(ResetStep.EMAIL)
+        private set
+    var resetEmail by mutableStateOf("")
+        private set
+    var isDeleting by mutableStateOf(false)
+        private set
+
+    enum class ResetStep { EMAIL, OTP_AND_PASSWORD }
+
     // ── Login ───────────────────────────────────────────────
     fun login(email: String, password: String, onSuccess: () -> Unit) {
         if (email.isBlank() || password.isBlank()) {
@@ -125,6 +135,85 @@ class AuthViewModel : ViewModel() {
             session.clear()
             ApiClient.clearCookies()
             onDone()
+        }
+    }
+
+    // ── Forgot Password ─────────────────────────────────────
+    fun forgotPassword(email: String) {
+        if (email.isBlank()) {
+            errorMessage = "Please enter your email"
+            return
+        }
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+            errorMessage = "Please enter a valid email address"
+            return
+        }
+        viewModelScope.launch {
+            isLoading = true
+            errorMessage = null
+            repo.forgotPassword(email.trim()).fold(
+                onSuccess = { response ->
+                    resetEmail = email.trim()
+                    resetStep = ResetStep.OTP_AND_PASSWORD
+                    successMessage = response.message ?: "If this email exists, a reset OTP was sent."
+                },
+                onFailure = { e ->
+                    errorMessage = e.message ?: "Connection error"
+                }
+            )
+            isLoading = false
+        }
+    }
+
+    fun resetPassword(otp: String, newPassword: String, onSuccess: () -> Unit) {
+        if (otp.length != 6) {
+            errorMessage = "Enter the 6-digit OTP"
+            return
+        }
+        if (newPassword.length < 6) {
+            errorMessage = "Password must be at least 6 characters"
+            return
+        }
+        viewModelScope.launch {
+            isLoading = true
+            errorMessage = null
+            repo.resetPassword(resetEmail, otp.trim(), newPassword).fold(
+                onSuccess = { response ->
+                    successMessage = response.message ?: "Password reset successful!"
+                    onSuccess()
+                },
+                onFailure = { e ->
+                    errorMessage = e.message ?: "Connection error"
+                }
+            )
+            isLoading = false
+        }
+    }
+
+    fun resetForgotPasswordFlow() {
+        resetStep = ResetStep.EMAIL
+        resetEmail = ""
+        errorMessage = null
+        successMessage = null
+    }
+
+    // ── Delete Account ──────────────────────────────────────
+    fun deleteAccount(onDone: () -> Unit) {
+        viewModelScope.launch {
+            isDeleting = true
+            errorMessage = null
+            repo.deleteAccount().fold(
+                onSuccess = {
+                    session.clear()
+                    ApiClient.clearCookies()
+                    isDeleting = false
+                    onDone()
+                },
+                onFailure = { e ->
+                    errorMessage = e.message ?: "Failed to delete account"
+                    isDeleting = false
+                }
+            )
         }
     }
 

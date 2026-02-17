@@ -19,6 +19,15 @@ class AuthRepository {
     suspend fun logout(): Result<ApiResponse> =
         safeApiCall { api.logout() }
 
+    suspend fun forgotPassword(email: String): Result<ApiResponse> =
+        safeApiCall { api.forgotPassword(ForgotPasswordRequest(email)) }
+
+    suspend fun resetPassword(email: String, otp: String, newPassword: String): Result<ApiResponse> =
+        safeApiCall { api.resetPassword(ResetPasswordRequest(email, otp, newPassword)) }
+
+    suspend fun deleteAccount(): Result<ApiResponse> =
+        safeApiCall { api.deleteAccount() }
+
     suspend fun checkAuthStatus(): Result<AuthStatusResponse> =
         safeApiCall { api.authStatus() }
 

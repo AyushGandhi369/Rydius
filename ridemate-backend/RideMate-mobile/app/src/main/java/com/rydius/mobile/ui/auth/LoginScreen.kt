@@ -35,6 +35,7 @@ import com.rydius.mobile.ui.theme.*
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onNavigateToSignup: () -> Unit,
+    onNavigateToForgotPassword: () -> Unit = {},
     vm: AuthViewModel = viewModel()
 ) {
     var email by remember { mutableStateOf("") }
@@ -160,6 +161,22 @@ fun LoginScreen(
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // Forgot password link
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = "Forgot Password?",
+                            color = Secondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable { onNavigateToForgotPassword() }
                         )
                     }
 

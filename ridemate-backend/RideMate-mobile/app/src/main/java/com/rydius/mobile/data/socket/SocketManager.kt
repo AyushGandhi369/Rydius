@@ -1,5 +1,6 @@
 package com.rydius.mobile.data.socket
 
+import com.rydius.mobile.data.api.ApiClient
 import com.rydius.mobile.util.Constants
 import io.socket.client.IO
 import io.socket.client.Socket
@@ -28,6 +29,11 @@ class SocketManager {
                 reconnectionDelay = 2000
                 timeout = 20000
                 transports = arrayOf("websocket", "polling")
+            }
+            ApiClient.getSessionCookieHeader(baseUrl)?.let { cookie ->
+                if (cookie.isNotBlank()) {
+                    opts.extraHeaders = mapOf("Cookie" to listOf(cookie))
+                }
             }
             socket = IO.socket(URI.create(baseUrl), opts)
             socket?.connect()
@@ -87,6 +93,20 @@ class SocketManager {
     }
 
     // ── Generic event listeners ─────────────────────────────────
+    fun onMatchStatusUpdate(listener: (JSONObject) -> Unit) {
+        socket?.off("match-status-update")
+        socket?.on("match-status-update") { args ->
+            if (args.isNotEmpty()) {
+                try {
+                    val data = args[0] as? JSONObject ?: JSONObject(args[0].toString())
+                    listener(data)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
     fun on(event: String, listener: Emitter.Listener) {
         socket?.on(event, listener)
     }

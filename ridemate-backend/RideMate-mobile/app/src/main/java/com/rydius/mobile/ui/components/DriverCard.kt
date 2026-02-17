@@ -135,6 +135,52 @@ fun DriverCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Partial ride warning
+            if (driver.isPartialRide) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = Warning.copy(alpha = 0.12f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = Warning, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Partial ride \u2014 covers ${driver.distanceSavedPct}% of your trip (${driver.remainingDistanceKm} km remaining)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Warning
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Seats & ETA info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (driver.availableSeats != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.EventSeat, contentDescription = null, tint = Info, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("${driver.availableSeats} seats", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    }
+                }
+                if (driver.eta != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, tint = Info, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("~${driver.eta} min", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Select button
             Button(
                 onClick = onSelect,

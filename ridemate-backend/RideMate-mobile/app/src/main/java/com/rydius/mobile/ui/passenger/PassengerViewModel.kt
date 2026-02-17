@@ -12,6 +12,7 @@ import com.rydius.mobile.data.repository.TripRepository
 import com.rydius.mobile.util.LocationHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class PassengerViewModel : ViewModel() {
 
@@ -55,6 +56,8 @@ class PassengerViewModel : ViewModel() {
     var acceptedDriverName by mutableStateOf<String?>(null)
         private set
     var acceptedFare by mutableStateOf<Double?>(null)
+        private set
+    var isCancelling by mutableStateOf(false)
         private set
 
     private var initialized = false
@@ -192,6 +195,7 @@ class PassengerViewModel : ViewModel() {
                     if (response.matchId != null) {
                         matchSent = true
                         sentMatchId = response.matchId
+                        setupMatchStatusSocketListener()
                         startMatchStatusPolling()
                     } else {
                         errorMessage = response.message ?: "Failed to send match request"
@@ -208,7 +212,57 @@ class PassengerViewModel : ViewModel() {
 
     fun clearError() { errorMessage = null }
 
+    // ── Cancel ride request ─────────────────────────────────
+    fun cancelRideRequest(onCancelled: () -> Unit) {
+        val reqId = rideRequestId ?: return
+        viewModelScope.launch {
+            isCancelling = true
+            errorMessage = null
+            tripRepo.cancelRideRequest(reqId).fold(
+                onSuccess = {
+                    pollingActive = false
+                    socketManager.off("match-status-update")
+                    isCancelling = false
+                    onCancelled()
+                },
+                onFailure = { e ->
+                    errorMessage = e.message ?: "Failed to cancel request"
+                    isCancelling = false
+                }
+            )
+        }
+    }
+
     // ── Match status polling ────────────────────────────────
+    private fun setupMatchStatusSocketListener() {
+        socketManager.connect()
+        socketManager.onMatchStatusUpdate { data: JSONObject ->
+            val incomingMatchId = data.optInt("matchId", -1)
+            val currentMatchId = sentMatchId ?: return@onMatchStatusUpdate
+            if (incomingMatchId <= 0 || incomingMatchId != currentMatchId) return@onMatchStatusUpdate
+
+            val status = data.optString("status", "")
+            if (status != "accepted" && status != "rejected") return@onMatchStatusUpdate
+
+            viewModelScope.launch {
+                pollingActive = false
+                when (status) {
+                    "accepted" -> {
+                        matchAccepted = true
+                        // Best-effort fetch to populate driver name + fare.
+                        checkMatchStatus()
+                    }
+                    "rejected" -> {
+                        matchRejected = true
+                        matchSent = false
+                        selectedDriverTripId = null
+                        sentMatchId = null
+                    }
+                }
+            }
+        }
+    }
+
     private fun startMatchStatusPolling() {
         if (pollingActive) return
         pollingActive = true
@@ -240,12 +294,15 @@ class PassengerViewModel : ViewModel() {
                     }
                 }
             } else if (sentMatchId != null) {
-                // Match not found in active list — likely rejected
-                matchRejected = true
-                matchSent = false
-                selectedDriverTripId = null
-                sentMatchId = null
-                pollingActive = false
+                // Match not found in active list — likely rejected.
+                // Avoid treating an "accepted" socket event as rejected if the API hasn't caught up yet.
+                if (!matchAccepted) {
+                    matchRejected = true
+                    matchSent = false
+                    selectedDriverTripId = null
+                    sentMatchId = null
+                    pollingActive = false
+                }
             }
         }
     }
@@ -261,6 +318,7 @@ class PassengerViewModel : ViewModel() {
         endLat: Double, endLng: Double,
         seats: Int, departureTime: String
     ) {
+        socketManager.off("match-status-update")
         initialized = false
         errorMessage = null
         matchSent = false
@@ -274,6 +332,7 @@ class PassengerViewModel : ViewModel() {
 
     override fun onCleared() {
         pollingActive = false
+        socketManager.off("match-status-update")
         super.onCleared()
     }
 }

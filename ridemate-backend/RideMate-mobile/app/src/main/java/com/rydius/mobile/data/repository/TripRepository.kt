@@ -25,6 +25,18 @@ class TripRepository {
     suspend fun completeTrip(id: Int): Result<ApiResponse> =
         safeApiCall { api.completeTrip(id) }
 
+    suspend fun cancelRideRequest(id: Int): Result<ApiResponse> =
+        safeApiCall { api.cancelRideRequest(id) }
+
+    suspend fun submitRating(matchId: Int, rating: Int, review: String?): Result<ApiResponse> =
+        safeApiCall { api.submitRating(SubmitRatingRequest(matchId, rating, review)) }
+
+    suspend fun getUserRating(userId: Int): Result<UserRatingResponse> =
+        safeApiCall { api.getUserRating(userId) }
+
+    suspend fun checkRating(matchId: Int): Result<RatingCheckResponse> =
+        safeApiCall { api.checkRating(matchId) }
+
     suspend fun createRideRequest(request: CreateRideRequestRequest): Result<CreateRideRequestResponse> =
         safeApiCall { api.createRideRequest(request) }
 

@@ -1,5 +1,6 @@
 package com.rydius.mobile.ui.passenger
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -197,13 +198,32 @@ fun PassengerConfirmationScreen(
                                 color = Secondary
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text("Request Sent!", fontWeight = FontWeight.Bold, color = Success)
                                 Text(
                                     "Waiting for the driver to accept your request...",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TextSecondary
                                 )
+                            }
+                            // Cancel button
+                            OutlinedButton(
+                                onClick = { vm.cancelRideRequest(onNavigateHome) },
+                                enabled = !vm.isCancelling,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Error),
+                                border = BorderStroke(1.dp, Error.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                if (vm.isCancelling) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Error
+                                    )
+                                } else {
+                                    Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                }
                             }
                         }
                     }

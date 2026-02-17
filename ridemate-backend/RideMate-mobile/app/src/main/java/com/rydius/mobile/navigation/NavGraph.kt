@@ -7,6 +7,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.rydius.mobile.ui.auth.ForgotPasswordScreen
 import com.rydius.mobile.ui.auth.LoginScreen
 import com.rydius.mobile.ui.auth.SignupScreen
 import com.rydius.mobile.ui.driver.DriverConfirmationScreen
@@ -21,6 +22,7 @@ object Routes {
     const val SPLASH   = "splash"
     const val LOGIN    = "login"
     const val SIGNUP   = "signup"
+    const val FORGOT_PASSWORD = "forgot_password"
     const val HOME     = "home"
     const val DRIVER   = "driver/{startLocation}/{endLocation}/{startLat}/{startLng}/{endLat}/{endLng}/{seats}/{departureTime}"
     const val PASSENGER = "passenger/{startLocation}/{endLocation}/{startLat}/{startLng}/{endLat}/{endLng}/{seats}/{departureTime}"
@@ -61,6 +63,9 @@ fun AppNavGraph(
                 },
                 onNavigateToSignup = {
                     navController.navigate(Routes.SIGNUP)
+                },
+                onNavigateToForgotPassword = {
+                    navController.navigate(Routes.FORGOT_PASSWORD)
                 }
             )
         }
@@ -73,6 +78,16 @@ fun AppNavGraph(
                     }
                 },
                 onNavigateToLogin = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.FORGOT_PASSWORD) {
+            ForgotPasswordScreen(
+                onBackToLogin = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.FORGOT_PASSWORD) { inclusive = true }
+                    }
+                }
             )
         }
 

@@ -45,7 +45,7 @@ fun MapViewComposable(
 
     val mapView = remember {
         MapLibre.getInstance(context)
-        MapView(context)
+        MapView(context).apply { onCreate(null) }
     }
 
     // Re-render map only when significant route inputs change.

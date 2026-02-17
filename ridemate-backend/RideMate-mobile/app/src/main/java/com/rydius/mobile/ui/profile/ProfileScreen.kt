@@ -59,6 +59,10 @@ fun ProfileScreen(
 
     // Sign-out confirmation
     var showLogoutDialog by remember { mutableStateOf(false) }
+    // Delete account confirmation
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleteConfirmText by remember { mutableStateOf("") }
+
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -73,6 +77,73 @@ fun ProfileScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!authVm.isDeleting) {
+                    showDeleteDialog = false
+                    deleteConfirmText = ""
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Delete Account", fontWeight = FontWeight.Bold, color = Error) },
+            text = {
+                Column {
+                    Text(
+                        "This action is permanent and cannot be undone. All your rides, matches, and data will be deleted.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Type DELETE to confirm:",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = deleteConfirmText,
+                        onValueChange = { deleteConfirmText = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        placeholder = { Text("DELETE") }
+                    )
+                    authVm.errorMessage?.let { err ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(err, color = Error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        authVm.deleteAccount {
+                            showDeleteDialog = false
+                            onLogout()
+                        }
+                    },
+                    enabled = deleteConfirmText == "DELETE" && !authVm.isDeleting
+                ) {
+                    if (authVm.isDeleting) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Delete Forever", color = Error, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        deleteConfirmText = ""
+                    },
+                    enabled = !authVm.isDeleting
+                ) { Text("Cancel") }
             }
         )
     }
@@ -202,16 +273,37 @@ fun ProfileScreen(
                     Spacer(Modifier.height(12.dp))
 
                     // Rating row
+                    val rating = profileVm.ratingAverage ?: 0.0
+                    val ratingCount = profileVm.ratingCount
+                    val fullStars = rating.toInt()
+                    val hasHalfStar = (rating - fullStars) >= 0.5
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        repeat(5) {
+                        repeat(5) { i ->
                             Icon(
-                                Icons.Default.Star, null,
+                                when {
+                                    i < fullStars -> Icons.Default.Star
+                                    i == fullStars && hasHalfStar -> Icons.Default.StarHalf
+                                    else -> Icons.Default.StarBorder
+                                },
+                                null,
                                 tint = Warning,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
                         Spacer(Modifier.width(4.dp))
-                        Text("5.0", color = TextOnPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(
+                            if (ratingCount > 0) "%.1f".format(rating) else "New",
+                            color = TextOnPrimary,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
+                        if (ratingCount > 0) {
+                            Text(
+                                " ($ratingCount)",
+                                color = TextOnPrimary.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }
@@ -465,6 +557,47 @@ fun ProfileScreen(
                             color = Error,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ═══════════════════════════════════════════════════
+            //  DELETE ACCOUNT
+            // ═══════════════════════════════════════════════════
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                colors = CardDefaults.cardColors(containerColor = CardLight)
+            ) {
+                Surface(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = CardLight,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.DeleteForever, null,
+                            tint = Error.copy(alpha = 0.6f), modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Delete Account",
+                            color = Error.copy(alpha = 0.6f),
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
                         )
                     }
                 }

@@ -6,6 +6,7 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
+const cookieSignature = require('cookie-signature');
 const { Resend } = require('resend');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
@@ -99,6 +100,7 @@ const saltRounds = 10;
 
 // Temporary store for OTPs and user data
 const otpStore = {};
+const passwordResetStore = {};  // email -> { otp, timestamp, attempts }
 const rateLimitBuckets = new Map();
 
 app.use(express.json({ limit: '5mb' }));
@@ -178,6 +180,7 @@ app.use(express.static(path.join(__dirname, '..')));
 app.set('trust proxy', 1);
 
 // Session configuration
+const SESSION_SECRET = process.env.SESSION_SECRET || 'ridemate-dev-secret-change-in-production';
 const sessionStore = new SQLiteStore({
     db: 'sessions.db',
     dir: __dirname,
@@ -186,7 +189,7 @@ const sessionStore = new SQLiteStore({
 });
 
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'ridemate-dev-secret-change-in-production',
+    secret: SESSION_SECRET,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
@@ -197,6 +200,50 @@ app.use(session({
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
 }));
+
+// Socket.IO auth: reuse express-session (connect.sid) to identify the user.
+// This prevents trusting client-supplied userIds for private rooms/events.
+function getCookieValue(cookieHeader, name) {
+    if (!cookieHeader || typeof cookieHeader !== 'string') return null;
+    const parts = cookieHeader.split(';');
+    for (const part of parts) {
+        const idx = part.indexOf('=');
+        if (idx === -1) continue;
+        const key = part.slice(0, idx).trim();
+        if (key !== name) continue;
+        return part.slice(idx + 1).trim();
+    }
+    return null;
+}
+
+function getSessionIdFromHandshake(socket) {
+    const rawCookieHeader = socket?.handshake?.headers?.cookie;
+    const rawSid = getCookieValue(rawCookieHeader, 'connect.sid');
+    if (!rawSid) return null;
+
+    let decoded = rawSid;
+    try { decoded = decodeURIComponent(rawSid); } catch { /* ignore */ }
+    if (decoded.startsWith('s:')) decoded = decoded.slice(2);
+
+    const unsigned = cookieSignature.unsign(decoded, SESSION_SECRET);
+    return unsigned || null;
+}
+
+io.use((socket, next) => {
+    const sid = getSessionIdFromHandshake(socket);
+    if (!sid) {
+        return next(new Error('unauthorized'));
+    }
+
+    sessionStore.get(sid, (err, sess) => {
+        if (err || !sess || !sess.userId) {
+            return next(new Error('unauthorized'));
+        }
+        socket.data.sessionId = sid;
+        socket.data.userId = sess.userId;
+        next();
+    });
+});
 
 const db = new sqlite3.Database('./database.db', (err) => {
     if (err) {
@@ -303,6 +350,25 @@ db.serialize(() => {
         UNIQUE(vehicle_type, fuel_type)
     )`);
 
+    // Create ratings table
+    db.run(`CREATE TABLE IF NOT EXISTS ratings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trip_id INTEGER NOT NULL,
+        match_id INTEGER NOT NULL,
+        rater_id INTEGER NOT NULL,
+        rated_id INTEGER NOT NULL,
+        rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+        review TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (trip_id) REFERENCES trips(id),
+        FOREIGN KEY (match_id) REFERENCES matches(id),
+        FOREIGN KEY (rater_id) REFERENCES users(id),
+        FOREIGN KEY (rated_id) REFERENCES users(id),
+        UNIQUE(match_id, rater_id)
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_ratings_rated ON ratings(rated_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_ratings_rater ON ratings(rater_id)`);
+
     // Backward-compatible migration for older DBs created before available_seats existed.
     db.run(`ALTER TABLE trips ADD COLUMN available_seats INTEGER DEFAULT 1`, (err) => {
         if (err && !String(err.message || '').includes('duplicate column name')) {
@@ -347,7 +413,7 @@ db.serialize(() => {
 function cleanupExpiredTrips() {
     db.run(
         `UPDATE trips
-         SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+         SET status = 'expired', updated_at = CURRENT_TIMESTAMP
          WHERE status = 'active'
            AND departure_time IS NOT NULL
            AND datetime(departure_time) <= datetime('now', '-24 hours')`,
@@ -373,46 +439,69 @@ const driverSockets = new Map(); // Map of socketId -> {userId, tripId, socket}
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
+    const userId = socket.data.userId;
+    console.log('Client connected:', socket.id, 'userId:', userId);
+
+    // Each authenticated user joins their personal notification room.
+    socket.join(`user-${userId}`);
 
     // Driver joins their trip room for notifications
     socket.on('driver-join-trip', (data) => {
         const payload = (data && typeof data === 'object') ? data : { tripId: data };
         const tripId = parseInt(payload.tripId, 10);
-        const userId = payload.userId || null;
 
         if (!Number.isFinite(tripId) || tripId <= 0) {
             return;
         }
 
-        console.log(`Driver ${userId} joined trip ${tripId} room`);
+        // Enforce ownership: only the authenticated driver for the trip can join its room.
+        db.get(
+            `SELECT id FROM trips WHERE id = ? AND driver_id = ? AND status = 'active' LIMIT 1`,
+            [tripId, userId],
+            (err, row) => {
+                if (err) {
+                    console.error('Error verifying trip ownership:', err);
+                    return;
+                }
+                if (!row) {
+                    console.warn(`User ${userId} denied joining trip room ${tripId}`);
+                    return;
+                }
 
-        // Store driver connection
-        activeDrivers.set(tripId, socket.id);
-        driverSockets.set(socket.id, { userId, tripId, socket });
+                console.log(`Driver ${userId} joined trip ${tripId} room`);
 
-        // Join the trip room
-        socket.join(`trip-${tripId}`);
+                // Store driver connection
+                activeDrivers.set(tripId, socket.id);
+                driverSockets.set(socket.id, { userId, tripId, socket });
 
-        // Confirm connection
-        socket.emit('driver-connected', { tripId, status: 'connected' });
+                // Join the trip room
+                socket.join(`trip-${tripId}`);
+
+                // Confirm connection
+                socket.emit('driver-connected', { tripId, status: 'connected' });
+            }
+        );
     });
 
     // Driver leaves trip room
     socket.on('driver-leave-trip', (data) => {
         const payload = (data && typeof data === 'object') ? data : { tripId: data };
         const tripId = parseInt(payload.tripId, 10);
-        if (!Number.isFinite(tripId) || tripId <= 0) {
+        const driverData = driverSockets.get(socket.id);
+        if (!driverData) return;
+
+        if (Number.isFinite(tripId) && tripId > 0 && driverData.tripId !== tripId) {
+            // Prevent a socket from leaving (and deleting) other driver's trip rooms.
             return;
         }
-        console.log(`Driver left trip ${tripId} room`);
+        console.log(`Driver left trip ${driverData.tripId} room`);
 
         // Remove from active drivers
-        activeDrivers.delete(tripId);
+        activeDrivers.delete(driverData.tripId);
         driverSockets.delete(socket.id);
 
         // Leave the trip room
-        socket.leave(`trip-${tripId}`);
+        socket.leave(`trip-${driverData.tripId}`);
     });
 
     // Handle disconnection
@@ -737,6 +826,7 @@ app.post('/api/verify-otp', otpRateLimiter, (req, res) => {
     }
 
     if (otp === storedData.otp) {
+        // Reset attempts on success
         const { name, email, password } = storedData;
         const sql = `INSERT INTO users (name, email, password) VALUES (?, ?, ?)`;
         db.run(sql, [name, email, password], function (err) {
@@ -750,7 +840,13 @@ app.post('/api/verify-otp', otpRateLimiter, (req, res) => {
             res.status(201).json({ message: 'User created successfully', userId: this.lastID });
         });
     } else {
-        res.status(400).json({ message: 'Invalid OTP' });
+        // Track failed OTP attempts — delete after 5 failures
+        storedData.attempts = (storedData.attempts || 0) + 1;
+        if (storedData.attempts >= 5) {
+            delete otpStore[email];
+            return res.status(400).json({ message: 'Too many failed attempts. Please sign up again.' });
+        }
+        res.status(400).json({ message: `Invalid OTP. ${5 - storedData.attempts} attempts remaining.` });
     }
 });
 
@@ -828,6 +924,114 @@ app.post('/api/logout', (req, res) => {
         }
         res.clearCookie('connect.sid'); // Clear session cookie
         res.json({ message: 'Logout successful' });
+    });
+});
+
+// ============= PASSWORD RESET =============
+
+// Step 1: Request password reset — sends OTP to email
+app.post('/api/forgot-password', authRateLimiter, (req, res) => {
+    const email = sanitizeString(req.body.email);
+    if (!email || !isValidEmail(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address' });
+    }
+
+    // Always respond with success to avoid email enumeration
+    const successMsg = 'If an account exists with this email, a reset code has been sent.';
+
+    db.get(`SELECT id FROM users WHERE email = ?`, [email], (err, user) => {
+        if (err || !user) {
+            return res.json({ message: successMsg });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        passwordResetStore[email] = { otp, timestamp: Date.now(), attempts: 0 };
+        console.log(`[Password Reset] OTP for ${email}: ${otp}`);
+
+        resend.emails.send({
+            from: 'noreply@ridemate.com',
+            to: email,
+            subject: 'Rydius Password Reset',
+            html: `<p>Your password reset code is: <strong>${otp}</strong></p>
+                   <p>This code expires in 5 minutes. If you didn't request this, ignore this email.</p>`
+        })
+        .then(() => res.json({ message: successMsg }))
+        .catch(() => res.json({ message: successMsg }));
+    });
+});
+
+// Step 2: Verify reset OTP and set new password
+app.post('/api/reset-password', authRateLimiter, (req, res) => {
+    const email = sanitizeString(req.body.email);
+    const otp = req.body.otp;
+    const newPassword = req.body.newPassword;
+
+    if (!email || !otp || !newPassword) {
+        return res.status(400).json({ message: 'Email, OTP, and new password are required' });
+    }
+    if (newPassword.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const stored = passwordResetStore[email];
+    if (!stored) {
+        return res.status(400).json({ message: 'No reset request found. Please request a new code.' });
+    }
+
+    // Check expiry (5 minutes)
+    if (Date.now() - stored.timestamp > 5 * 60 * 1000) {
+        delete passwordResetStore[email];
+        return res.status(400).json({ message: 'Reset code has expired. Please request a new one.' });
+    }
+
+    // Check attempts
+    if (stored.attempts >= 5) {
+        delete passwordResetStore[email];
+        return res.status(400).json({ message: 'Too many failed attempts. Please request a new code.' });
+    }
+
+    if (otp !== stored.otp) {
+        stored.attempts++;
+        return res.status(400).json({ message: `Invalid code. ${5 - stored.attempts} attempts remaining.` });
+    }
+
+    // OTP correct — hash and update password
+    bcrypt.hash(newPassword, saltRounds, (err, hash) => {
+        if (err) {
+            return res.status(500).json({ message: 'Error processing request' });
+        }
+        db.run(`UPDATE users SET password = ? WHERE email = ?`, [hash, email], function (dbErr) {
+            delete passwordResetStore[email];
+            if (dbErr) {
+                return res.status(500).json({ message: 'Error updating password' });
+            }
+            res.json({ message: 'Password reset successfully. Please log in with your new password.' });
+        });
+    });
+});
+
+// ============= ACCOUNT DELETION =============
+
+app.delete('/api/account', requireAuth, (req, res) => {
+    const userId = req.session.userId;
+
+    // Delete user data in order: matches → ride_requests → trips → user
+    db.serialize(() => {
+        db.run(`DELETE FROM matches WHERE ride_request_id IN (SELECT id FROM ride_requests WHERE passenger_id = ?) OR trip_id IN (SELECT id FROM trips WHERE driver_id = ?)`,
+            [userId, userId]);
+        db.run(`DELETE FROM ride_requests WHERE passenger_id = ?`, [userId]);
+        db.run(`UPDATE trips SET status = 'cancelled' WHERE driver_id = ? AND status = 'active'`, [userId]);
+        db.run(`DELETE FROM trips WHERE driver_id = ?`, [userId]);
+        db.run(`DELETE FROM ratings WHERE rater_id = ? OR rated_id = ?`, [userId, userId]);
+        db.run(`DELETE FROM users WHERE id = ?`, [userId], function (err) {
+            if (err) {
+                return res.status(500).json({ message: 'Error deleting account' });
+            }
+            req.session.destroy(() => {
+                res.clearCookie('connect.sid');
+                res.json({ message: 'Account deleted successfully' });
+            });
+        });
     });
 });
 
@@ -1340,7 +1544,8 @@ app.get('/api/trips/my-rides', requireAuth, (req, res) => {
 
     // Rides as passenger (via matches)
     const passengerSql = `SELECT t.*, 'passenger' as user_role, m.status as match_status,
-                           ud.name as driver_name, m.fare_amount as fare_share
+                           ud.name as driver_name, m.fare_amount as fare_share,
+                           m.id as match_id, ud.id as driver_user_id
                            FROM matches m 
                            JOIN trips t ON m.trip_id = t.id 
                            JOIN ride_requests rr ON m.ride_request_id = rr.id
@@ -1388,9 +1593,14 @@ app.get('/api/trips/:id', requireAuth, (req, res) => {
     const sql = `SELECT t.*, u.name as driver_name 
                  FROM trips t 
                  JOIN users u ON t.driver_id = u.id 
-                 WHERE t.id = ?`;
+                 WHERE t.id = ?
+                   AND (t.driver_id = ? OR EXISTS (
+                       SELECT 1 FROM matches m
+                       JOIN ride_requests rr ON m.ride_request_id = rr.id
+                       WHERE m.trip_id = t.id AND rr.passenger_id = ? AND m.status IN ('pending','accepted')
+                   ))`;
 
-    db.get(sql, [req.params.id], (err, trip) => {
+    db.get(sql, [req.params.id, req.session.userId, req.session.userId], (err, trip) => {
         if (err) {
             return res.status(500).json({ message: 'Error fetching trip' });
         }
@@ -1727,6 +1937,29 @@ app.post('/api/ride-requests', requireAuth, (req, res) => {
         });
 });
 
+// Cancel a ride request (passenger)
+app.put('/api/ride-requests/:id/cancel', requireAuth, (req, res) => {
+    const requestId = req.params.id;
+    db.get(`SELECT id, passenger_id, status FROM ride_requests WHERE id = ?`, [requestId], (err, rr) => {
+        if (err) return res.status(500).json({ message: 'Database error' });
+        if (!rr) return res.status(404).json({ message: 'Ride request not found' });
+        if (rr.passenger_id !== req.session.userId) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        if (rr.status === 'cancelled' || rr.status === 'completed') {
+            return res.status(400).json({ message: 'Cannot cancel — ride is already ' + rr.status });
+        }
+        db.run(`UPDATE ride_requests SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            [requestId], function (updateErr) {
+                if (updateErr) return res.status(500).json({ message: 'Error cancelling request' });
+                // Also reject any pending matches
+                db.run(`UPDATE matches SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE ride_request_id = ? AND status IN ('pending','accepted')`,
+                    [requestId]);
+                res.json({ message: 'Ride request cancelled successfully' });
+            });
+    });
+});
+
 // Find available drivers for a passenger
 app.get('/api/available-drivers', requireAuth, (req, res) => {
     const { pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, distance_km } = req.query;
@@ -1769,6 +2002,7 @@ app.get('/api/available-drivers', requireAuth, (req, res) => {
                  JOIN users u ON t.driver_id = u.id 
                  WHERE t.status = 'active' 
                  AND t.driver_id != ?
+                 AND t.available_seats > 0
                  AND datetime(t.departure_time) > datetime('now')
                  AND t.route_polyline IS NOT NULL
                  AND t.route_polyline != ''`;
@@ -1831,8 +2065,8 @@ app.get('/api/available-drivers', requireAuth, (req, res) => {
                     // Add actual drop-off coordinates for partial rides
                     actual_dropoff_lat: routeMatch.isPartialRide ? routeMatch.bestDropPoint.lat : parseFloat(dropoff_lat),
                     actual_dropoff_lng: routeMatch.isPartialRide ? routeMatch.bestDropPoint.lng : parseFloat(dropoff_lng),
-                    // Store the route match for later use
-                    route_match: routeMatch
+                    // Store the route match for later use (internal only)
+                    route_match: undefined
                 });
             }
         }
@@ -1878,7 +2112,7 @@ app.post('/api/matches', requireAuth, (req, res) => {
     }
 
     const verifySql = `SELECT rr.id as ride_request_id, rr.passenger_id, rr.status as request_status,
-                       t.id as trip_id, t.status as trip_status, t.driver_id
+                       t.id as trip_id, t.status as trip_status, t.driver_id, t.available_seats
                        FROM ride_requests rr
                        JOIN trips t ON t.id = ?
                        WHERE rr.id = ?`;
@@ -1903,6 +2137,10 @@ app.post('/api/matches', requireAuth, (req, res) => {
 
         if (validationRow.trip_status !== 'active') {
             return res.status(409).json({ message: 'Trip is no longer active' });
+        }
+
+        if (!Number.isFinite(validationRow.available_seats) || validationRow.available_seats <= 0) {
+            return res.status(409).json({ message: 'No seats available' });
         }
 
         if (!['searching', 'matched'].includes(validationRow.request_status)) {
@@ -1986,93 +2224,183 @@ app.put('/api/matches/:id/status', requireAuth, (req, res) => {
         return res.status(400).json({ message: 'Invalid status' });
     }
 
-    // First verify the match exists and get details
-    const checkSql = `SELECT m.*, t.driver_id, rr.passenger_id 
-                      FROM matches m 
-                      JOIN trips t ON m.trip_id = t.id 
-                      JOIN ride_requests rr ON m.ride_request_id = rr.id 
+    const matchId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(matchId) || matchId <= 0) {
+        return res.status(400).json({ message: 'Invalid match id' });
+    }
+
+    // Verify the match exists, belongs to the current driver, and is still pending.
+    const checkSql = `SELECT
+                      m.id,
+                      m.status as match_status,
+                      m.trip_id,
+                      m.ride_request_id,
+                      t.driver_id,
+                      t.status as trip_status,
+                      t.available_seats,
+                      rr.passenger_id
+                      FROM matches m
+                      JOIN trips t ON m.trip_id = t.id
+                      JOIN ride_requests rr ON m.ride_request_id = rr.id
                       WHERE m.id = ?`;
 
-    db.get(checkSql, [req.params.id], (err, match) => {
+    db.get(checkSql, [matchId], (err, match) => {
         if (err) {
             console.error('Error checking match:', err);
             return res.status(500).json({ message: 'Error checking match' });
         }
 
         if (!match) {
-            console.log(`Match not found for ID: ${req.params.id}`);
+            console.log(`Match not found for ID: ${matchId}`);
             return res.status(404).json({ message: 'Match not found' });
         }
 
-        // Verify the current user is either the driver or passenger
-        if (match.driver_id !== req.session.userId && match.passenger_id !== req.session.userId) {
-            return res.status(403).json({ message: 'Not authorized to update this match' });
+        // Only the driver can accept or reject a match
+        if (match.driver_id !== req.session.userId) {
+            return res.status(403).json({ message: 'Only the driver can accept or reject a match' });
         }
 
-        // Update the match status
-        const updateSql = `UPDATE matches SET status = ?, updated_at = CURRENT_TIMESTAMP 
-                          WHERE id = ?`;
+        if (match.match_status !== 'pending') {
+            return res.status(409).json({ message: `Match is already ${match.match_status}` });
+        }
 
-        db.run(updateSql, [status, req.params.id], function (err) {
-            if (err) {
-                console.error('Error updating match status:', err);
-                return res.status(500).json({ message: 'Error updating match status' });
-            }
-
-            console.log(`Match ${req.params.id} ${status} by user ${req.session.userId}`);
-
-            // Emit socket event to notify passenger of match status change
+        const emitMatchStatusToPassenger = (newStatus) => {
             try {
                 if (match.passenger_id) {
-                    io.emit('match-status-update', {
-                        matchId: parseInt(req.params.id),
-                        status: status,
-                        passengerId: match.passenger_id,
-                        driverId: match.driver_id
+                    io.to(`user-${match.passenger_id}`).emit('match-status-update', {
+                        matchId,
+                        status: newStatus
                     });
                 }
             } catch (socketErr) {
                 console.error('Socket emit error:', socketErr);
             }
+        };
 
-            const respondSuccess = () => {
-                res.json({
-                    message: `Match ${status} successfully`,
-                    matchId: req.params.id,
-                    status: status
+        const respondSuccess = (newStatus) => {
+            res.json({
+                message: `Match ${newStatus} successfully`,
+                matchId,
+                status: newStatus
+            });
+        };
+
+        if (status === 'rejected') {
+            const updateSql = `UPDATE matches
+                               SET status = 'rejected', updated_at = CURRENT_TIMESTAMP
+                               WHERE id = ? AND status = 'pending'`;
+
+            db.run(updateSql, [matchId], function (updateErr) {
+                if (updateErr) {
+                    console.error('Error updating match status:', updateErr);
+                    return res.status(500).json({ message: 'Error updating match status' });
+                }
+                if (this.changes === 0) {
+                    return res.status(409).json({ message: 'Match is no longer pending' });
+                }
+
+                console.log(`Match ${matchId} rejected by user ${req.session.userId}`);
+
+                // If rejected and no other active matches exist, reopen the ride request for searching.
+                const activeCountSql = `SELECT COUNT(*) as active_count
+                                        FROM matches
+                                        WHERE ride_request_id = ?
+                                          AND id != ?
+                                          AND status IN ('pending', 'accepted')`;
+                db.get(activeCountSql, [match.ride_request_id, matchId], (countErr, row) => {
+                    if (countErr) {
+                        console.error('Error checking remaining active matches:', countErr);
+                        emitMatchStatusToPassenger('rejected');
+                        return respondSuccess('rejected');
+                    }
+                    const activeCount = row?.active_count || 0;
+                    if (activeCount > 0) {
+                        emitMatchStatusToPassenger('rejected');
+                        return respondSuccess('rejected');
+                    }
+                    db.run(
+                        `UPDATE ride_requests SET status = 'searching', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                        [match.ride_request_id],
+                        (rrErr) => {
+                            if (rrErr) console.error('Error reopening ride request:', rrErr);
+                            emitMatchStatusToPassenger('rejected');
+                            respondSuccess('rejected');
+                        }
+                    );
                 });
-            };
+            });
+            return;
+        }
 
-            if (status === 'accepted') {
-                db.run(`UPDATE ride_requests SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                    [match.ride_request_id], (rrErr) => {
-                        if (rrErr) console.error('Error updating ride request status:', rrErr);
-                        respondSuccess();
-                    });
-                return;
+        // Accept path: enforce seat availability + keep match + trip updates consistent.
+        db.run('BEGIN IMMEDIATE', (beginErr) => {
+            if (beginErr) {
+                console.error('Failed to begin match accept transaction:', beginErr);
+                return res.status(503).json({ message: 'Database busy, please retry' });
             }
 
-            // If rejected and no other active matches exist, reopen the ride request for searching.
-            const activeCountSql = `SELECT COUNT(*) as active_count
-                                    FROM matches
-                                    WHERE ride_request_id = ?
-                                      AND id != ?
-                                      AND status IN ('pending', 'accepted')`;
-            db.get(activeCountSql, [match.ride_request_id, req.params.id], (countErr, row) => {
-                if (countErr) {
-                    console.error('Error checking remaining active matches:', countErr);
-                    return respondSuccess();
+            const rollbackAndRespond = (statusCode, message) => {
+                db.run('ROLLBACK', () => res.status(statusCode).json({ message }));
+            };
+
+            // 1) Reserve a seat atomically.
+            db.run(
+                `UPDATE trips
+                 SET available_seats = available_seats - 1, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ? AND status = 'active' AND available_seats > 0`,
+                [match.trip_id],
+                function (seatErr) {
+                    if (seatErr) {
+                        console.error('Error decrementing seats:', seatErr);
+                        return rollbackAndRespond(500, 'Error updating seat count');
+                    }
+                    if (this.changes === 0) {
+                        return rollbackAndRespond(409, 'No seats available');
+                    }
+
+                    // 2) Accept the match only if it's still pending.
+                    db.run(
+                        `UPDATE matches
+                         SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+                         WHERE id = ? AND status = 'pending'`,
+                        [matchId],
+                        function (matchErr) {
+                            if (matchErr) {
+                                console.error('Error accepting match:', matchErr);
+                                return rollbackAndRespond(500, 'Error accepting match');
+                            }
+                            if (this.changes === 0) {
+                                return rollbackAndRespond(409, 'Match is no longer pending');
+                            }
+
+                            // 3) Confirm the ride request.
+                            db.run(
+                                `UPDATE ride_requests
+                                 SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP
+                                 WHERE id = ?`,
+                                [match.ride_request_id],
+                                (rrErr) => {
+                                    if (rrErr) {
+                                        console.error('Error updating ride request status:', rrErr);
+                                        return rollbackAndRespond(500, 'Error confirming ride request');
+                                    }
+
+                                    db.run('COMMIT', (commitErr) => {
+                                        if (commitErr) {
+                                            console.error('Failed to commit match accept transaction:', commitErr);
+                                            return rollbackAndRespond(500, 'Error finalizing match acceptance');
+                                        }
+
+                                        console.log(`Match ${matchId} accepted by user ${req.session.userId}`);
+                                        emitMatchStatusToPassenger('accepted');
+                                        respondSuccess('accepted');
+                                    });
+                                }
+                            );
+                        }
+                    );
                 }
-                const activeCount = row?.active_count || 0;
-                if (activeCount > 0) {
-                    return respondSuccess();
-                }
-                db.run(`UPDATE ride_requests SET status = 'searching', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                    [match.ride_request_id], (rrErr) => {
-                        if (rrErr) console.error('Error reopening ride request:', rrErr);
-                        respondSuccess();
-                    });
-            });
+            );
         });
     });
 });
@@ -2209,6 +2537,80 @@ app.put('/api/cost-sharing/fuel-prices', requireAuth, (req, res) => {
         }
         res.json({ message: 'Fuel price updated successfully', vehicleType, fuelType, costPerKm });
     });
+});
+
+// ============= RATINGS =============
+
+// Submit a rating for a completed trip
+app.post('/api/ratings', requireAuth, (req, res) => {
+    const { match_id, rating, review } = req.body;
+
+    if (!hasValue(match_id) || !hasValue(rating)) {
+        return res.status(400).json({ message: 'match_id and rating are required' });
+    }
+    const ratingVal = parseInt(rating, 10);
+    if (ratingVal < 1 || ratingVal > 5) {
+        return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+    }
+
+    // Verify match exists, is completed, and user is part of it
+    const checkSql = `SELECT m.id, m.trip_id, m.status, t.driver_id, rr.passenger_id
+                      FROM matches m
+                      JOIN trips t ON m.trip_id = t.id
+                      JOIN ride_requests rr ON m.ride_request_id = rr.id
+                      WHERE m.id = ?`;
+
+    db.get(checkSql, [match_id], (err, match) => {
+        if (err) return res.status(500).json({ message: 'Database error' });
+        if (!match) return res.status(404).json({ message: 'Match not found' });
+        if (match.status !== 'completed') {
+            return res.status(400).json({ message: 'Can only rate completed rides' });
+        }
+
+        const userId = req.session.userId;
+        const isDriver = match.driver_id === userId;
+        const isPassenger = match.passenger_id === userId;
+        if (!isDriver && !isPassenger) {
+            return res.status(403).json({ message: 'Not authorized to rate this ride' });
+        }
+
+        // The person being rated is the opposite party
+        const ratedId = isDriver ? match.passenger_id : match.driver_id;
+
+        const insertSql = `INSERT INTO ratings (trip_id, match_id, rater_id, rated_id, rating, review)
+                           VALUES (?, ?, ?, ?, ?, ?)`;
+        db.run(insertSql, [match.trip_id, match_id, userId, ratedId, ratingVal, review || null], function (insertErr) {
+            if (insertErr) {
+                if (String(insertErr.message || '').includes('UNIQUE')) {
+                    return res.status(409).json({ message: 'You have already rated this ride' });
+                }
+                return res.status(500).json({ message: 'Error submitting rating' });
+            }
+            res.json({ message: 'Rating submitted successfully', ratingId: this.lastID });
+        });
+    });
+});
+
+// Get average rating for a user
+app.get('/api/ratings/:userId', requireAuth, (req, res) => {
+    const sql = `SELECT ROUND(AVG(rating), 1) as average, COUNT(*) as count
+                 FROM ratings WHERE rated_id = ?`;
+    db.get(sql, [req.params.userId], (err, row) => {
+        if (err) return res.status(500).json({ message: 'Database error' });
+        res.json({
+            average: row?.average || 0,
+            count: row?.count || 0
+        });
+    });
+});
+
+// Check if user has already rated a specific match
+app.get('/api/ratings/check/:matchId', requireAuth, (req, res) => {
+    db.get(`SELECT id, rating, review FROM ratings WHERE match_id = ? AND rater_id = ?`,
+        [req.params.matchId, req.session.userId], (err, row) => {
+            if (err) return res.status(500).json({ message: 'Database error' });
+            res.json({ hasRated: !!row, rating: row || null });
+        });
 });
 
 // ─── Startup Validation ─────────────────────────────────────

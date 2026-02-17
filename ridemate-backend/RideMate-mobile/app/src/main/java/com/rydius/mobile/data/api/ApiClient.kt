@@ -13,6 +13,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.net.CookieManager
 import java.net.CookiePolicy
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
@@ -66,6 +67,21 @@ object ApiClient {
     }
 
     /**
+     * Returns the `Cookie` header value for the current session (if any),
+     * used by Socket.IO to authenticate using the same `connect.sid` cookie as Retrofit.
+     */
+    fun getSessionCookieHeader(baseUrl: String = Constants.BASE_URL): String? {
+        return try {
+            val uri = URI(baseUrl.trimEnd('/'))
+            val cookies = cookieManager.cookieStore.get(uri)
+            val sid = cookies.firstOrNull { it.name == "connect.sid" } ?: return null
+            "${sid.name}=${sid.value}"
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Intercepts 401 responses and broadcasts a session-expired event
      * so the UI can redirect to the login screen.
      */
@@ -73,12 +89,14 @@ object ApiClient {
         override fun intercept(chain: Interceptor.Chain): Response {
             val response = chain.proceed(chain.request())
             if (response.code == 401) {
-                // Clear cookies and notify the app
-                clearCookies()
                 appContext?.let { ctx ->
                     val session = com.rydius.mobile.util.SessionManager(ctx)
-                    session.clear()
-                    ctx.sendBroadcast(Intent(ACTION_SESSION_EXPIRED))
+                    // Clear cookies always; only broadcast if the user was logged in.
+                    clearCookies()
+                    if (session.isLoggedIn) {
+                        session.clear()
+                        ctx.sendBroadcast(Intent(ACTION_SESSION_EXPIRED).setPackage(ctx.packageName))
+                    }
                 }
             }
             return response

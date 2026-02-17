@@ -224,6 +224,9 @@ class HomeViewModel : ViewModel() {
             dropoffText.isBlank() -> "Enter drop-off location"
             pickupLat == 0.0 && pickupLng == 0.0 -> "Select a pickup from suggestions"
             dropoffLat == 0.0 && dropoffLng == 0.0 -> "Select a drop-off from suggestions"
+            pickupLat != 0.0 && dropoffLat != 0.0 &&
+                LocationHelper.distanceKm(pickupLat, pickupLng, dropoffLat, dropoffLng) < 0.5 ->
+                "Pickup and drop-off are too close (min 500m)"
             else -> null
         }
         return errorMessage == null

@@ -19,6 +19,15 @@ interface ApiService {
     @POST("api/logout")
     suspend fun logout(): Response<ApiResponse>
 
+    @POST("api/forgot-password")
+    suspend fun forgotPassword(@Body body: ForgotPasswordRequest): Response<ApiResponse>
+
+    @POST("api/reset-password")
+    suspend fun resetPassword(@Body body: ResetPasswordRequest): Response<ApiResponse>
+
+    @HTTP(method = "DELETE", path = "api/account")
+    suspend fun deleteAccount(): Response<ApiResponse>
+
     @GET("api/auth/status")
     suspend fun authStatus(): Response<AuthStatusResponse>
 
@@ -78,6 +87,9 @@ interface ApiService {
     @PUT("api/trips/{id}/complete")
     suspend fun completeTrip(@Path("id") id: Int): Response<ApiResponse>
 
+    @PUT("api/ride-requests/{id}/cancel")
+    suspend fun cancelRideRequest(@Path("id") id: Int): Response<ApiResponse>
+
     // ── Ride requests (passenger) ───────────────────────────────
     @POST("api/ride-requests")
     suspend fun createRideRequest(@Body body: CreateRideRequestRequest): Response<CreateRideRequestResponse>
@@ -132,4 +144,14 @@ interface ApiService {
 
     @GET("api/profile/completion")
     suspend fun getProfileCompletion(): Response<ProfileCompletionResponse>
+
+    // ── Ratings ──────────────────────────────────────────────────
+    @POST("api/ratings")
+    suspend fun submitRating(@Body body: SubmitRatingRequest): Response<ApiResponse>
+
+    @GET("api/ratings/{userId}")
+    suspend fun getUserRating(@Path("userId") userId: Int): Response<UserRatingResponse>
+
+    @GET("api/ratings/check/{matchId}")
+    suspend fun checkRating(@Path("matchId") matchId: Int): Response<RatingCheckResponse>
 }
