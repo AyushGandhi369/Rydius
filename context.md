@@ -25,7 +25,7 @@
 
 - **Drivers** to offer rides by specifying their route
 - **Passengers** to search for available drivers along their desired route
-- **Smart route matching** using Google Maps polyline data
+- **Smart route matching** using provider-agnostic encoded polyline data (Ola Maps)
 - **Real-time notifications** when passengers request rides from drivers
 - **Privacy-preserving** route segments (passengers only see relevant portions of driver routes)
 
@@ -62,7 +62,7 @@
 | **Vanilla CSS** | Styling (no frameworks) |
 | **Vanilla JavaScript** | Client-side logic |
 | **Socket.io Client** | 4.8.1 | Real-time communication |
-| **Google Maps API** | Maps and route visualization |
+| **Ola Maps API** | Maps, autocomplete, geocoding, and route visualization |
 
 ---
 
@@ -183,7 +183,7 @@ erDiagram
 | end_location | TEXT | Destination address |
 | start_lat, start_lng | REAL | Start coordinates |
 | end_lat, end_lng | REAL | End coordinates |
-| route_polyline | TEXT | Encoded Google Maps route |
+| route_polyline | TEXT | Encoded route polyline (Ola-compatible) |
 | distance_km | REAL | Total trip distance |
 | duration_minutes | INTEGER | Estimated duration |
 | departure_time | DATETIME | Scheduled departure |
@@ -257,7 +257,7 @@ erDiagram
 
 ### 1. `index.html` - Main Landing Page
 - Hero section with search form
-- Pickup/Dropoff location inputs with Google Maps autocomplete
+- Pickup/Dropoff location inputs with Ola-backed autocomplete
 - DateTime picker for scheduling
 - "Heading to" (Driver) and "Be Passenger" action buttons
 - User menu dropdown when logged in
@@ -384,7 +384,7 @@ The application uses sophisticated algorithms for matching:
    - Used to find closest points on driver's route
 
 2. **Polyline Decoding**
-   - Decodes Google Maps encoded polyline
+    - Decodes encoded route polyline (Ola-compatible)
    - Converts to array of lat/lng points
 
 3. **Route Matching Threshold**
@@ -426,7 +426,7 @@ const driverEarnings = totalFare * 0.86;
 | 🐛 | **Fixed Z-Index Layering** - Suggestions dropdown now appears above other input fields using `:focus-within` |
 | 🐛 | **Disabled Browser Autocomplete** - Added `autocomplete="off"`, `autocorrect="off"`, `spellcheck="false"` to prevent browser suggestions |
 | ✨ | **Local Ahmedabad Autocomplete** - Added 80+ Ahmedabad locations (areas, malls, colleges, hospitals, landmarks) |
-| 🔧 | **Disabled Google Maps API** - Commented out until valid API key is configured to avoid errors |
+| 🔧 | **Migrated map provider** - Removed legacy provider hooks and standardized on Ola Maps |
 | 🐛 | **Fixed Mobile Profile Dropdown** - Dropdown now appears under profile button (not bottom sheet) with smooth animation |
 | 🎨 | **Improved Dropdown Styling** - Professional design with z-index: 100000, fade/scale animation, red logout button |
 | 🐛 | **Fixed Active Trip Prompt** - Added `pointer-events: none` when hidden, repositioned above mobile nav |
@@ -439,7 +439,7 @@ const driverEarnings = totalFare * 0.86;
 | `pwa-mobile.css` | Added `!important` scroll rules, removed touch-callout blocking |
 | `mobile-responsive.css` | Fixed mobile dropdown positioning and animation |
 | `style.css` | Added `:focus-within` z-index management, suggestions list styling |
-| `index.html` | Added autocomplete blocking attributes, fixed active-trip-prompt, disabled Google Maps script |
+| `index.html` | Added autocomplete blocking attributes, fixed active-trip-prompt, and standardized map provider flow |
 | `location-autocomplete.js` | Complete rewrite with 80+ Ahmedabad locations, smart matching, professional styling |
 
 #### Local Autocomplete Locations Include
@@ -521,15 +521,15 @@ const resend = new Resend('re_YKiaFw7e_LXUhzgyNhgdUGBsCbaPkqsW1');
 const resend = new Resend(process.env.RESEND_API_KEY);
 ```
 
-### Google Maps API
+### Ola Maps API
 
-The application uses Google Maps JavaScript API for:
+The application uses Ola Maps APIs for:
 - Autocomplete suggestions
-- Route calculation
-- Polyline encoding/decoding
+- Geocoding and reverse geocoding
+- Route calculation (with distance matrix fallback)
 - Map display
 
-> **Note:** The API key should be configured for your domain.
+> **Note:** Configure `OLA_MAPS_API_KEY` in environment variables.
 
 ---
 

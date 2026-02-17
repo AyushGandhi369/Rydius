@@ -20,6 +20,34 @@ const io = new Server(server, {
 });
 const port = process.env.PORT || 3000;
 
+const fetchFromWeb = global.fetch
+    ? global.fetch.bind(global)
+    : async (...args) => {
+        const nodeFetch = await import('node-fetch');
+        return nodeFetch.default(...args);
+    };
+
+async function fetchJsonWithTimeout(url, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const response = await fetchFromWeb(url, { signal: controller.signal });
+        const text = await response.text();
+        let data = null;
+
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch {
+            data = { raw: text };
+        }
+
+        return { ok: response.ok, status: response.status, data };
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
 // ============= INPUT SANITIZATION HELPERS =============
 function sanitizeString(str) {
     if (typeof str !== 'string') return '';
@@ -263,7 +291,7 @@ function notifyDriverInstantly(tripId, requestData) {
     console.log(`🚨 INSTANT NOTIFICATION: Driver for trip ${tripId} notified of ₹${driverEarnings} earnings`);
 }
 
-// Utility function to decode encoded polyline (compatible with both Google Maps and Ola Maps format)
+// Utility function to decode encoded polyline (provider-agnostic format)
 function decodePolyline(encoded) {
     const points = [];
     let index = 0;
@@ -607,6 +635,182 @@ app.get('/api/config', (req, res) => {
     res.json({
         olaMapsApiKey: process.env.OLA_MAPS_API_KEY || ''
     });
+});
+
+function getOlaApiKey() {
+    return process.env.OLA_MAPS_API_KEY || '';
+}
+
+function normalizeAutocompletePrediction(prediction = {}) {
+    const location = prediction.geometry?.location || {};
+    return {
+        description: prediction.description || prediction.structured_formatting?.main_text || '',
+        place_id: prediction.place_id || prediction.reference || '',
+        lat: typeof location.lat === 'number' ? location.lat : null,
+        lng: typeof location.lng === 'number' ? location.lng : null,
+        types: Array.isArray(prediction.types) ? prediction.types : []
+    };
+}
+
+app.get('/api/maps/autocomplete', async (req, res) => {
+    const apiKey = getOlaApiKey();
+    const query = sanitizeString(req.query.q || req.query.input || '');
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 10);
+
+    if (!apiKey) {
+        return res.status(503).json({ message: 'Ola Maps API key not configured' });
+    }
+
+    if (!query || query.length < 2) {
+        return res.json({ predictions: [] });
+    }
+
+    const url = `https://api.olamaps.io/places/v1/autocomplete?input=${encodeURIComponent(query)}&api_key=${apiKey}`;
+
+    try {
+        const result = await fetchJsonWithTimeout(url);
+
+        if (!result.ok) {
+            return res.status(result.status).json({
+                message: 'Failed to fetch autocomplete results',
+                predictions: []
+            });
+        }
+
+        const predictions = Array.isArray(result.data?.predictions)
+            ? result.data.predictions.slice(0, limit).map(normalizeAutocompletePrediction)
+            : [];
+
+        res.json({ predictions });
+    } catch (error) {
+        console.error('Autocomplete proxy error:', error.message || error);
+        res.status(500).json({ message: 'Autocomplete service unavailable', predictions: [] });
+    }
+});
+
+app.get('/api/maps/geocode', async (req, res) => {
+    const apiKey = getOlaApiKey();
+    const query = sanitizeString(req.query.query || req.query.q || req.query.input || '');
+
+    if (!apiKey) {
+        return res.status(503).json({ message: 'Ola Maps API key not configured' });
+    }
+
+    if (!query || query.length < 2) {
+        return res.status(400).json({ message: 'Query must be at least 2 characters' });
+    }
+
+    const url = `https://api.olamaps.io/places/v1/autocomplete?input=${encodeURIComponent(query)}&api_key=${apiKey}`;
+
+    try {
+        const result = await fetchJsonWithTimeout(url);
+
+        if (!result.ok) {
+            return res.status(result.status).json({ message: 'Geocode lookup failed' });
+        }
+
+        const first = Array.isArray(result.data?.predictions) ? result.data.predictions[0] : null;
+        const normalized = first ? normalizeAutocompletePrediction(first) : null;
+
+        if (!normalized || normalized.lat === null || normalized.lng === null) {
+            return res.status(404).json({ message: 'No matching location found' });
+        }
+
+        res.json({ location: normalized });
+    } catch (error) {
+        console.error('Geocode proxy error:', error.message || error);
+        res.status(500).json({ message: 'Geocode service unavailable' });
+    }
+});
+
+app.get('/api/maps/reverse-geocode', async (req, res) => {
+    const apiKey = getOlaApiKey();
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+
+    if (!apiKey) {
+        return res.status(503).json({ message: 'Ola Maps API key not configured' });
+    }
+
+    if (!isValidCoordinate(lat, lng)) {
+        return res.status(400).json({ message: 'Invalid coordinates' });
+    }
+
+    const url = `https://api.olamaps.io/places/v1/reverse-geocode?latlng=${lat},${lng}&api_key=${apiKey}`;
+
+    try {
+        const result = await fetchJsonWithTimeout(url);
+
+        if (!result.ok) {
+            return res.status(result.status).json({ message: 'Reverse geocode lookup failed' });
+        }
+
+        const first = Array.isArray(result.data?.results) ? result.data.results[0] : null;
+        const location = first?.geometry?.location || {};
+
+        res.json({
+            address: first?.formatted_address || '',
+            lat: typeof location.lat === 'number' ? location.lat : lat,
+            lng: typeof location.lng === 'number' ? location.lng : lng,
+            place_id: first?.place_id || ''
+        });
+    } catch (error) {
+        console.error('Reverse geocode proxy error:', error.message || error);
+        res.status(500).json({ message: 'Reverse geocode service unavailable' });
+    }
+});
+
+app.get('/api/maps/directions', async (req, res) => {
+    const apiKey = getOlaApiKey();
+    const origin = sanitizeString(req.query.origin || '');
+    const destination = sanitizeString(req.query.destination || '');
+
+    if (!apiKey) {
+        return res.status(503).json({ message: 'Ola Maps API key not configured' });
+    }
+
+    if (!origin || !destination) {
+        return res.status(400).json({ message: 'Origin and destination are required' });
+    }
+
+    const directionsUrl = `https://api.olamaps.io/routing/v1/directions?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&api_key=${apiKey}`;
+    const distanceMatrixUrl = `https://api.olamaps.io/routing/v1/distanceMatrix?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&api_key=${apiKey}`;
+
+    try {
+        const directionsResult = await fetchJsonWithTimeout(directionsUrl);
+
+        if (directionsResult.ok && Array.isArray(directionsResult.data?.routes) && directionsResult.data.routes.length > 0) {
+            return res.json(directionsResult.data);
+        }
+
+        const matrixResult = await fetchJsonWithTimeout(distanceMatrixUrl);
+
+        if (!matrixResult.ok) {
+            return res.status(matrixResult.status).json({ message: 'Directions lookup failed' });
+        }
+
+        const element = matrixResult.data?.rows?.[0]?.elements?.[0];
+        if (!element) {
+            return res.status(404).json({ message: 'No route found' });
+        }
+
+        res.json({
+            routes: [
+                {
+                    legs: [
+                        {
+                            distance: element.distance || 0,
+                            duration: element.duration || 0
+                        }
+                    ],
+                    overview_polyline: element.polyline || ''
+                }
+            ]
+        });
+    } catch (error) {
+        console.error('Directions proxy error:', error.message || error);
+        res.status(500).json({ message: 'Directions service unavailable' });
+    }
 });
 
 // ============= DRIVER ENDPOINTS =============

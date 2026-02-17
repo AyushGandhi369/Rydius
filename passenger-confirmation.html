@@ -1091,14 +1091,11 @@
         // Helper: Geocode location name to coords via Ola Autocomplete
         async function geocodeLocationName(locationName) {
             try {
-                const url = `https://api.olamaps.io/places/v1/autocomplete?input=${encodeURIComponent(locationName)}&api_key=${OLA_MAPS_API_KEY}`;
+                const url = `/api/maps/geocode?query=${encodeURIComponent(locationName)}`;
                 const resp = await fetch(url);
                 const data = await resp.json();
-                if (data.predictions && data.predictions.length > 0) {
-                    const place = data.predictions[0];
-                    if (place.geometry && place.geometry.location) {
-                        return { lat: place.geometry.location.lat, lng: place.geometry.location.lng };
-                    }
+                if (data.location && typeof data.location.lat === 'number' && typeof data.location.lng === 'number') {
+                    return { lat: data.location.lat, lng: data.location.lng };
                 }
             } catch (e) { console.error('Geocode error:', e); }
             return null;
@@ -1107,9 +1104,9 @@
         // Helper: Reverse geocode coords to address via Ola API
         async function reverseGeocode(lat, lng) {
             try {
-                const resp = await fetch(`https://api.olamaps.io/places/v1/reverse-geocode?latlng=${lat},${lng}&api_key=${OLA_MAPS_API_KEY}`);
+                const resp = await fetch(`/api/maps/reverse-geocode?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
                 const data = await resp.json();
-                if (data.results && data.results.length > 0) return data.results[0].formatted_address;
+                if (data.address) return data.address;
             } catch (e) { console.error('Reverse geocode error:', e); }
             return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         }
@@ -1270,7 +1267,7 @@
                     return;
                 }
 
-                const dirUrl = `https://api.olamaps.io/routing/v1/directions?origin=${startCoords.lat},${startCoords.lng}&destination=${endCoords.lat},${endCoords.lng}&api_key=${OLA_MAPS_API_KEY}`;
+                const dirUrl = `/api/maps/directions?origin=${encodeURIComponent(`${startCoords.lat},${startCoords.lng}`)}&destination=${encodeURIComponent(`${endCoords.lat},${endCoords.lng}`)}`;
                 const response = await fetch(dirUrl);
                 const data = await response.json();
 

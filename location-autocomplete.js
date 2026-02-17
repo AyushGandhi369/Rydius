@@ -1,6 +1,6 @@
 /**
  * Location Autocomplete for RideMate
- * Simplified and reliable implementation
+ * Ola-backed implementation with resilient local fallback
  */
 
 // Ahmedabad areas and popular locations
@@ -80,6 +80,9 @@ const LOCATIONS = [
 
 // Global variable to track if selection is in progress
 let isSelecting = false;
+const selectedLocationByInputId = new Map();
+const debounceTimerByInputId = new Map();
+const requestTokenByInputId = new Map();
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function () {
@@ -101,13 +104,112 @@ function initAutocomplete() {
     }
 
     // Setup both inputs
-    setupAutocomplete(pickupInput, pickupSuggestions);
-    setupAutocomplete(dropoffInput, dropoffSuggestions);
+    setupAutocomplete(pickupInput, pickupSuggestions, 'pickup-location');
+    setupAutocomplete(dropoffInput, dropoffSuggestions, 'dropoff-location');
 
     console.log('RideMate Autocomplete: Ready with', LOCATIONS.length, 'locations');
 }
 
-function setupAutocomplete(input, suggestionsContainer) {
+async function fetchOlaSuggestions(query, limit = 8) {
+    const url = `/api/maps/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`;
+    const response = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Autocomplete API failed with ${response.status}`);
+    }
+
+    const data = await response.json();
+    const predictions = Array.isArray(data.predictions) ? data.predictions : [];
+
+    return predictions
+        .filter(item => item && item.description)
+        .slice(0, limit)
+        .map(item => ({
+            description: item.description,
+            lat: typeof item.lat === 'number' ? item.lat : null,
+            lng: typeof item.lng === 'number' ? item.lng : null,
+            placeId: item.place_id || ''
+        }));
+}
+
+function getLocalSuggestions(query, limit = 8) {
+    return LOCATIONS
+        .filter(loc => loc.toLowerCase().includes(query.toLowerCase()))
+        .slice(0, limit)
+        .map(loc => ({ description: loc, lat: null, lng: null, placeId: '' }));
+}
+
+function renderSuggestions(input, suggestionsContainer, suggestions, inputId) {
+    if (!suggestions || suggestions.length === 0) {
+        suggestionsContainer.innerHTML = '<div style="padding: 15px; color: #888; text-align: center;">No locations found</div>';
+        suggestionsContainer.style.display = 'block';
+        return;
+    }
+
+    suggestionsContainer.innerHTML = suggestions.map((item) => {
+        const safeLoc = item.description
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        return `
+            <div class="suggestion-item" data-value="${safeLoc}" style="
+                padding: 12px 16px;
+                cursor: pointer;
+                border-bottom: 1px solid #f0f0f0;
+                transition: background 0.15s;
+            ">
+                📍 ${safeLoc}
+            </div>
+        `;
+    }).join('');
+
+    suggestionsContainer.querySelectorAll('.suggestion-item').forEach((itemNode, index) => {
+        itemNode.addEventListener('mousedown', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const selected = suggestions[index];
+            isSelecting = true;
+            input.value = selected.description;
+            suggestionsContainer.style.display = 'none';
+
+            if (selected.lat !== null && selected.lng !== null) {
+                input.dataset.lat = String(selected.lat);
+                input.dataset.lng = String(selected.lng);
+                input.dataset.placeId = selected.placeId || '';
+            } else {
+                delete input.dataset.lat;
+                delete input.dataset.lng;
+                delete input.dataset.placeId;
+            }
+
+            selectedLocationByInputId.set(inputId, selected);
+
+            input.style.borderColor = '#4CAF50';
+            setTimeout(() => {
+                input.style.borderColor = '';
+                isSelecting = false;
+            }, 300);
+        });
+
+        itemNode.addEventListener('mouseenter', function () {
+            this.style.background = '#f5f5f5';
+        });
+
+        itemNode.addEventListener('mouseleave', function () {
+            this.style.background = '#fff';
+        });
+    });
+
+    suggestionsContainer.style.display = 'block';
+}
+
+function setupAutocomplete(input, suggestionsContainer, inputId) {
     if (!suggestionsContainer) {
         suggestionsContainer = document.createElement('div');
         suggestionsContainer.className = 'suggestions-list';
@@ -134,70 +236,61 @@ function setupAutocomplete(input, suggestionsContainer) {
     // Ensure parent has position relative
     input.parentElement.style.position = 'relative';
 
+    function clearPendingTimer() {
+        const timer = debounceTimerByInputId.get(inputId);
+        if (timer) {
+            clearTimeout(timer);
+            debounceTimerByInputId.delete(inputId);
+        }
+    }
+
     // Handle input
     input.addEventListener('input', function () {
         const query = this.value.toLowerCase().trim();
 
-        if (query.length < 1) {
+        selectedLocationByInputId.delete(inputId);
+        delete input.dataset.lat;
+        delete input.dataset.lng;
+        delete input.dataset.placeId;
+        clearPendingTimer();
+
+        if (query.length < 2) {
             suggestionsContainer.style.display = 'none';
             return;
         }
 
-        // Find matches
-        const matches = LOCATIONS.filter(loc =>
-            loc.toLowerCase().includes(query)
-        ).slice(0, 8);
+        const currentToken = Date.now() + Math.random();
+        requestTokenByInputId.set(inputId, currentToken);
 
-        if (matches.length === 0) {
-            suggestionsContainer.innerHTML = '<div style="padding: 15px; color: #888; text-align: center;">No locations found</div>';
-        } else {
-            suggestionsContainer.innerHTML = matches.map(loc => {
-                const safeLoc = loc.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                return `
-                <div class="suggestion-item" data-value="${safeLoc}" style="
-                    padding: 12px 16px;
-                    cursor: pointer;
-                    border-bottom: 1px solid #f0f0f0;
-                    transition: background 0.15s;
-                ">
-                    📍 ${safeLoc}
-                </div>
-            `;
-            }).join('');
+        const timer = setTimeout(async () => {
+            try {
+                let suggestions = [];
 
-            // Add click handlers to each suggestion
-            suggestionsContainer.querySelectorAll('.suggestion-item').forEach(item => {
-                // Use mousedown to capture before blur
-                item.addEventListener('mousedown', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
+                try {
+                    suggestions = await fetchOlaSuggestions(query, 8);
+                } catch {
+                    suggestions = [];
+                }
 
-                    isSelecting = true;
-                    const value = this.getAttribute('data-value');
-                    input.value = value;
-                    suggestionsContainer.style.display = 'none';
+                if (!suggestions.length) {
+                    suggestions = getLocalSuggestions(query, 8);
+                }
 
-                    console.log('Location selected:', value);
+                if (requestTokenByInputId.get(inputId) !== currentToken) {
+                    return;
+                }
 
-                    // Visual feedback
-                    input.style.borderColor = '#4CAF50';
-                    setTimeout(() => {
-                        input.style.borderColor = '';
-                        isSelecting = false;
-                    }, 300);
-                });
+                renderSuggestions(input, suggestionsContainer, suggestions, inputId);
+            } catch {
+                const fallbackSuggestions = getLocalSuggestions(query, 8);
+                if (requestTokenByInputId.get(inputId) !== currentToken) {
+                    return;
+                }
+                renderSuggestions(input, suggestionsContainer, fallbackSuggestions, inputId);
+            }
+        }, 220);
 
-                // Hover effect
-                item.addEventListener('mouseenter', function () {
-                    this.style.background = '#f5f5f5';
-                });
-                item.addEventListener('mouseleave', function () {
-                    this.style.background = '#fff';
-                });
-            });
-        }
-
-        suggestionsContainer.style.display = 'block';
+        debounceTimerByInputId.set(inputId, timer);
     });
 
     // Show on focus
@@ -272,6 +365,19 @@ function handleNavigation(type) {
     // Store in localStorage
     localStorage.setItem('startLocation', pickup);
     localStorage.setItem('endLocation', dropoff);
+
+    const pickupSelected = selectedLocationByInputId.get('pickup-location');
+    const dropoffSelected = selectedLocationByInputId.get('dropoff-location');
+
+    if (pickupSelected && pickupSelected.lat !== null && pickupSelected.lng !== null) {
+        localStorage.setItem('startLocationLat', String(pickupSelected.lat));
+        localStorage.setItem('startLocationLng', String(pickupSelected.lng));
+    }
+
+    if (dropoffSelected && dropoffSelected.lat !== null && dropoffSelected.lng !== null) {
+        localStorage.setItem('endLocationLat', String(dropoffSelected.lat));
+        localStorage.setItem('endLocationLng', String(dropoffSelected.lng));
+    }
 
     // Build URL
     const page = type === 'driver' ? 'driver-confirmation.html' : 'passenger-confirmation.html';
