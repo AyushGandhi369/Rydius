@@ -6,6 +6,8 @@ ridemate-backend/node_modules/
 .env
 .env.local
 .env.production
+.env.development
+.env.test
 
 # Database
 *.db
@@ -31,11 +33,35 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+*.iml
+*.iws
 
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+server-run.log
+server-run.err.log
 
 # Build output
 dist/
 build/
+out/
+target/
+bin/
+
+# Android specific (Root level catch-all)
+.gradle/
+local.properties
+Captures/
+.externalNativeBuild
+.cxx
+*.apk
+*.ap_
+*.dex
+*.class
+
+# Mobile specific outputs
+ridemate-backend/RideMate-mobile/app/build/
+ridemate-backend/RideMate-mobile/build/

@@ -1,6 +1,45 @@
-*.iml
-.gradle/
-local.properties
-/.idea
+# Build artifacts
+bin/
+gen/
+out/
 /build
 /app/build
+
+# Kotlin/JVM
+*.class
+*.dex
+*.apk
+*.ap_
+*.aab
+
+# Gradle
+.gradle/
+/buildsrc/build
+/gradlew
+/gradlew.bat
+/gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ
+/.idea
+*.iml
+*.iws
+*.ipr
+.navigation/
+captures/
+.externalNativeBuild
+.cxx/
+
+# Local configuration
+local.properties
+
+# Logs
+*.log
+
+# Device/Emulator
+capture.png
+output.json
+
+# Keys/Secrets (Sensitive)
+*.keystore
+!debug.keystore
+google-services.json
