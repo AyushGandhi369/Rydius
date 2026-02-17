@@ -1,5 +1,6 @@
 package com.rydius.mobile.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -30,14 +31,14 @@ object Routes {
         startLat: Double, startLng: Double,
         endLat: Double, endLng: Double,
         seats: Int, departureTime: String
-    ) = "driver/$startLocation/$endLocation/$startLat/$startLng/$endLat/$endLng/$seats/$departureTime"
+    ) = "driver/${Uri.encode(startLocation)}/${Uri.encode(endLocation)}/$startLat/$startLng/$endLat/$endLng/$seats/${Uri.encode(departureTime)}"
 
     fun passengerRoute(
         startLocation: String, endLocation: String,
         startLat: Double, startLng: Double,
         endLat: Double, endLng: Double,
         seats: Int, departureTime: String
-    ) = "passenger/$startLocation/$endLocation/$startLat/$startLng/$endLat/$endLng/$seats/$departureTime"
+    ) = "passenger/${Uri.encode(startLocation)}/${Uri.encode(endLocation)}/$startLat/$startLng/$endLat/$endLng/$seats/${Uri.encode(departureTime)}"
 }
 
 @Composable

@@ -255,8 +255,7 @@ fun SignupScreen(
                         onClick = {
                             if (vm.signupStep == AuthViewModel.SignupStep.FORM) {
                                 if (password != confirmPassword) {
-                                    vm.clearError()
-                                    // show mismatch manually via vm
+                                    vm.setError("Passwords don't match")
                                     return@Button
                                 }
                                 vm.signup(name, email, password)
