@@ -59,6 +59,8 @@ class PassengerViewModel : ViewModel() {
         private set
     var isCancelling by mutableStateOf(false)
         private set
+    var cancelError by mutableStateOf<String?>(null)
+        private set
 
     private var initialized = false
     private var pollingActive = false
@@ -217,7 +219,7 @@ class PassengerViewModel : ViewModel() {
         val reqId = rideRequestId ?: return
         viewModelScope.launch {
             isCancelling = true
-            errorMessage = null
+            cancelError = null
             tripRepo.cancelRideRequest(reqId).fold(
                 onSuccess = {
                     pollingActive = false
@@ -226,7 +228,7 @@ class PassengerViewModel : ViewModel() {
                     onCancelled()
                 },
                 onFailure = { e ->
-                    errorMessage = e.message ?: "Failed to cancel request"
+                    cancelError = e.message ?: "Failed to cancel request"
                     isCancelling = false
                 }
             )

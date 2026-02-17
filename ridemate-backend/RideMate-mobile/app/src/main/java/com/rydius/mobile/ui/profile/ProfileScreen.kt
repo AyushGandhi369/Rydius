@@ -576,7 +576,7 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(containerColor = CardLight)
             ) {
                 Surface(
-                    onClick = { showDeleteDialog = true },
+                    onClick = { authVm.clearError(); showDeleteDialog = true },
                     modifier = Modifier.fillMaxWidth(),
                     color = CardLight,
                     shape = RoundedCornerShape(16.dp)

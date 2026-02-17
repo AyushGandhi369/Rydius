@@ -65,6 +65,7 @@ fun MyRidesScreen(
                     showRatingDialog = false
                     ratingValue = 0
                     reviewText = ""
+                    vm.clearError()
                 }
             },
             shape = RoundedCornerShape(20.dp),
@@ -126,6 +127,17 @@ fun MyRidesScreen(
                         minLines = 2,
                         maxLines = 4
                     )
+
+                    // Inline error for rating submission failure
+                    vm.errorMessage?.let { err ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = err,
+                            color = Error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -156,6 +168,7 @@ fun MyRidesScreen(
                         showRatingDialog = false
                         ratingValue = 0
                         reviewText = ""
+                        vm.clearError()
                     },
                     enabled = !vm.isSubmittingRating
                 ) { Text("Cancel") }

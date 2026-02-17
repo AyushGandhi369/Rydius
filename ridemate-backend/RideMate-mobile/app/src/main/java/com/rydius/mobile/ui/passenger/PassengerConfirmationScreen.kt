@@ -226,6 +226,15 @@ fun PassengerConfirmationScreen(
                                 }
                             }
                         }
+                        // Cancel error shown inline (not full-screen)
+                        vm.cancelError?.let { err ->
+                            Text(
+                                text = err,
+                                color = Error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }

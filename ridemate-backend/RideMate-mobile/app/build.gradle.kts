@@ -34,14 +34,21 @@ android {
                 ?: "https://your-production-domain.com"
             val olaMapsApiKey = project.findProperty("OLA_MAPS_API_KEY")?.toString()
                 ?: System.getenv("OLA_MAPS_API_KEY").orEmpty()
-            if (baseUrl.contains("your-production-domain.com")) {
-                throw GradleException("RIDEMATE_BASE_URL must be set to your production HTTPS URL for release builds.")
-            }
-            if (!baseUrl.startsWith("https://")) {
-                throw GradleException("Release RIDEMATE_BASE_URL must use https://")
-            }
-            if (olaMapsApiKey.isBlank()) {
-                throw GradleException("OLA_MAPS_API_KEY is required for release builds.")
+            val isReleaseBuild = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+            if (isReleaseBuild) {
+                if (baseUrl.contains("your-production-domain.com")) {
+                    throw GradleException("RIDEMATE_BASE_URL must be set to your production HTTPS URL for release builds.")
+                }
+                if (!baseUrl.startsWith("https://")) {
+                    throw GradleException("Release RIDEMATE_BASE_URL must use https://")
+                }
+                if (olaMapsApiKey.isBlank()) {
+                    throw GradleException("OLA_MAPS_API_KEY is required for release builds.")
+                }
+            } else {
+                if (baseUrl.contains("your-production-domain.com") || !baseUrl.startsWith("https://")) {
+                    println("Note: Release build guards are bypassed during non-release tasks / sync.")
+                }
             }
             buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
             buildConfigField("String", "OLA_MAPS_API_KEY", "\"$olaMapsApiKey\"")

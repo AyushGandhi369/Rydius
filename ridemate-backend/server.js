@@ -103,6 +103,18 @@ const otpStore = {};
 const passwordResetStore = {};  // email -> { otp, timestamp, attempts }
 const rateLimitBuckets = new Map();
 
+// Periodic cleanup of expired OTP stores (every 10 minutes)
+setInterval(() => {
+    const now = Date.now();
+    const OTP_EXPIRY_MS = 5 * 60 * 1000;
+    for (const key of Object.keys(otpStore)) {
+        if (now - (otpStore[key].timestamp || 0) > OTP_EXPIRY_MS) delete otpStore[key];
+    }
+    for (const key of Object.keys(passwordResetStore)) {
+        if (now - (passwordResetStore[key].timestamp || 0) > OTP_EXPIRY_MS) delete passwordResetStore[key];
+    }
+}, 10 * 60 * 1000);
+
 app.use(express.json({ limit: '5mb' }));
 
 function createRateLimiter({ windowMs, max, message, keyFn }) {
@@ -963,7 +975,7 @@ app.post('/api/forgot-password', authRateLimiter, (req, res) => {
 // Step 2: Verify reset OTP and set new password
 app.post('/api/reset-password', authRateLimiter, (req, res) => {
     const email = sanitizeString(req.body.email);
-    const otp = req.body.otp;
+    const otp = String(req.body.otp || '');
     const newPassword = req.body.newPassword;
 
     if (!email || !otp || !newPassword) {
@@ -1015,21 +1027,40 @@ app.post('/api/reset-password', authRateLimiter, (req, res) => {
 app.delete('/api/account', requireAuth, (req, res) => {
     const userId = req.session.userId;
 
-    // Delete user data in order: matches → ride_requests → trips → user
-    db.serialize(() => {
+    // Delete user data in a transaction for atomicity
+    db.run('BEGIN IMMEDIATE TRANSACTION', (beginErr) => {
+        if (beginErr) return res.status(500).json({ message: 'Error deleting account' });
+
+        const rollback = (msg) => {
+            db.run('ROLLBACK', () => {
+                res.status(500).json({ message: msg || 'Error deleting account' });
+            });
+        };
+
         db.run(`DELETE FROM matches WHERE ride_request_id IN (SELECT id FROM ride_requests WHERE passenger_id = ?) OR trip_id IN (SELECT id FROM trips WHERE driver_id = ?)`,
-            [userId, userId]);
-        db.run(`DELETE FROM ride_requests WHERE passenger_id = ?`, [userId]);
-        db.run(`UPDATE trips SET status = 'cancelled' WHERE driver_id = ? AND status = 'active'`, [userId]);
-        db.run(`DELETE FROM trips WHERE driver_id = ?`, [userId]);
-        db.run(`DELETE FROM ratings WHERE rater_id = ? OR rated_id = ?`, [userId, userId]);
-        db.run(`DELETE FROM users WHERE id = ?`, [userId], function (err) {
-            if (err) {
-                return res.status(500).json({ message: 'Error deleting account' });
-            }
-            req.session.destroy(() => {
-                res.clearCookie('connect.sid');
-                res.json({ message: 'Account deleted successfully' });
+            [userId, userId], function (err) {
+            if (err) return rollback('Error removing matches');
+            db.run(`DELETE FROM ride_requests WHERE passenger_id = ?`, [userId], function (err2) {
+                if (err2) return rollback('Error removing ride requests');
+                db.run(`UPDATE trips SET status = 'cancelled' WHERE driver_id = ? AND status = 'active'`, [userId], function (err3) {
+                    if (err3) return rollback('Error cancelling trips');
+                    db.run(`DELETE FROM trips WHERE driver_id = ?`, [userId], function (err4) {
+                        if (err4) return rollback('Error removing trips');
+                        db.run(`DELETE FROM ratings WHERE rater_id = ? OR rated_id = ?`, [userId, userId], function (err5) {
+                            if (err5) return rollback('Error removing ratings');
+                            db.run(`DELETE FROM users WHERE id = ?`, [userId], function (err6) {
+                                if (err6) return rollback('Error deleting user');
+                                db.run('COMMIT', (commitErr) => {
+                                    if (commitErr) return rollback('Error finalizing deletion');
+                                    req.session.destroy(() => {
+                                        res.clearCookie('connect.sid');
+                                        res.json({ message: 'Account deleted successfully' });
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
             });
         });
     });
@@ -1952,10 +1983,15 @@ app.put('/api/ride-requests/:id/cancel', requireAuth, (req, res) => {
         db.run(`UPDATE ride_requests SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
             [requestId], function (updateErr) {
                 if (updateErr) return res.status(500).json({ message: 'Error cancelling request' });
-                // Also reject any pending matches
+                // Also reject any pending/accepted matches — wait for completion before responding
                 db.run(`UPDATE matches SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE ride_request_id = ? AND status IN ('pending','accepted')`,
-                    [requestId]);
-                res.json({ message: 'Ride request cancelled successfully' });
+                    [requestId], function (matchErr) {
+                        if (matchErr) {
+                            console.error('Error rejecting matches during cancel:', matchErr);
+                            // Ride request is already cancelled, report partial success
+                        }
+                        res.json({ message: 'Ride request cancelled successfully' });
+                    });
             });
     });
 });

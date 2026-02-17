@@ -112,7 +112,11 @@ class ProfileViewModel : ViewModel() {
                         ratingAverage = r.average
                         ratingCount = r.count
                     },
-                    onFailure = { /* silent */ }
+                    onFailure = {
+                        // Leave ratingAverage as null so UI shows "New" — acceptable fallback
+                        ratingAverage = null
+                        ratingCount = 0
+                    }
                 )
             }
             isLoading = false

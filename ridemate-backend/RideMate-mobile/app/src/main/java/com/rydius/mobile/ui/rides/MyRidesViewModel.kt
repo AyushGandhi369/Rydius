@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rydius.mobile.data.model.MyRide
 import com.rydius.mobile.data.repository.TripRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 class MyRidesViewModel : ViewModel() {
@@ -50,13 +52,15 @@ class MyRidesViewModel : ViewModel() {
         val completedWithMatch = rides.filter {
             it.status == "completed" && it.matchId != null && it.userRole == "passenger"
         }
-        val rated = mutableSetOf<Int>()
-        for (ride in completedWithMatch) {
-            tripRepo.checkRating(ride.matchId!!).onSuccess { check ->
-                if (check.hasRated) rated.add(ride.matchId)
+        val results = completedWithMatch.map { ride ->
+            viewModelScope.async {
+                tripRepo.checkRating(ride.matchId!!).fold(
+                    onSuccess = { check -> if (check.hasRated) ride.matchId else null },
+                    onFailure = { null }
+                )
             }
-        }
-        ratedMatchIds = rated
+        }.awaitAll()
+        ratedMatchIds = results.filterNotNull().toSet()
     }
 
     fun submitRating(matchId: Int, rating: Int, review: String?, onDone: () -> Unit) {

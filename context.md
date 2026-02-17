@@ -1,6 +1,6 @@
 ﻿# Rydius — Context Documentation
 
-> **Last Updated:** February 19, 2026
+> **Last Updated:** February 20, 2026
 > **Purpose:** Single source of truth for any AI agent working on this codebase. Read this FIRST.
 
 ---
@@ -101,8 +101,9 @@ RideMate-mobile/
 │           │
 │           ├── ui/
 │           │   ├── auth/
-│           │   │   ├── AuthViewModel.kt     # Login/signup/OTP logic, email validation
-│           │   │   ├── LoginScreen.kt       # Email + password login form
+│           │   │   ├── AuthViewModel.kt     # Login/signup/OTP, forgot password, account deletion
+│           │   │   ├── ForgotPasswordScreen.kt  # Two-step reset: email → OTP + new password
+│           │   │   ├── LoginScreen.kt       # Email + password login form, forgot password link
 │           │   │   └── SignupScreen.kt      # Name/email/password + OTP verification
 │           │   │
 │           │   ├── components/              # Shared composables
@@ -122,17 +123,17 @@ RideMate-mobile/
 │           │   │   └── HomeViewModel.kt     # Location state, fetchCurrentLocation()
 │           │   │
 │           │   ├── passenger/
-│           │   │   ├── PassengerConfirmationScreen.kt  # Driver selection, booking
-│           │   │   └── PassengerViewModel.kt           # Available drivers, match flow
+│           │   │   ├── PassengerConfirmationScreen.kt  # Driver selection, booking, cancel
+│           │   │   └── PassengerViewModel.kt           # Available drivers, match flow, cancel
 │           │   │
 │           │   ├── profile/
-│           │   │   ├── ProfileScreen.kt         # Uber-style profile overview (read-only)
+│           │   │   ├── ProfileScreen.kt         # Uber-style profile, real ratings, delete account
 │           │   │   ├── EditProfileScreen.kt     # Full edit form (photo, phone verify, etc.)
-│           │   │   └── ProfileViewModel.kt      # Profile CRUD, photo upload, phone OTP
+│           │   │   └── ProfileViewModel.kt      # Profile CRUD, photo upload, phone OTP, rating fetch
 │           │   │
 │           │   ├── rides/
-│           │   │   ├── MyRidesScreen.kt         # Tabs: Active / Completed / Cancelled
-│           │   │   └── MyRidesViewModel.kt      # Fetches /api/trips/my-rides
+│           │   │   ├── MyRidesScreen.kt         # Tabs: Active / Completed / Cancelled + rating dialog
+│           │   │   └── MyRidesViewModel.kt      # Fetches /api/trips/my-rides, rating submission
 │           │   │
 │           │   └── theme/
 │           │       ├── Color.kt             # Brand palette (see §8)
@@ -160,6 +161,7 @@ RideMate-mobile/
 | `MY_RIDES` | `"my_rides"` | MyRidesScreen |
 | `PROFILE` | `"profile"` | ProfileScreen |
 | `EDIT_PROFILE` | `"edit_profile"` | EditProfileScreen |
+| `FORGOT_PASSWORD` | `"forgot_password"` | ForgotPasswordScreen |
 
 **Navigation gotcha:** All string args in DRIVER/PASSENGER routes are `Uri.encode()`-ed. Never pass raw strings with `/` or special chars.
 
@@ -259,6 +261,35 @@ HomeScreen's departure time card is clickable — opens Android's native `DatePi
 ### 6.14. Pickup Distance Display
 `DriverCard` shows pickup distance in meters for short distances (<1km) and km for longer ones. The backend returns `pickup_distance` in **meters**. Don't divide or multiply — just format correctly.
 
+### 6.15. Password Reset — Two-Step OTP Flow
+1. User taps "Forgot Password?" on LoginScreen → navigates to `FORGOT_PASSWORD` route
+2. Step 1: Enter email → `POST /api/forgot-password` → server stores 6-digit OTP in `passwordResetStore` (in-memory, expires 5 min)
+3. Step 2: Enter OTP + new password + confirm → `POST /api/reset-password` → verifies OTP (string-coerced), updates bcrypt hash
+4. `AuthViewModel` tracks `resetStep` (EMAIL / OTP) and `resetEmail` state
+5. `ForgotPasswordScreen` uses `DisposableEffect` to reset flow state on exit
+
+### 6.16. Account Deletion — Transactional Cascade
+`DELETE /api/account` performs atomic cascading deletion inside `BEGIN IMMEDIATE TRANSACTION`:
+1. Delete matches → ride_requests → trips → ratings → user
+2. Each step has error callback → `ROLLBACK` on failure
+3. On success → `COMMIT` → destroy session → clear cookie
+4. On Android side, `AuthViewModel.deleteAccount()` calls API then clears `SessionManager`
+5. `ProfileScreen` has "type DELETE to confirm" dialog; clears stale errors on open
+
+### 6.17. Rating System
+- `POST /api/ratings` — submit rating (1-5 stars + optional review text)
+- `GET /api/ratings/:userId` — returns `{average, count}` for user's ratings
+- `GET /api/ratings/check/:matchId` — returns `{hasRated, rating}` for current user
+- **ProfileScreen** shows dynamic star display (supports half-stars) with real average/count
+- **MyRidesScreen** shows "Rate This Ride" button on completed passenger rides (not yet rated)
+- Rating dialog has inline error display; errors are cleared on dialog dismiss
+- `MyRidesViewModel.checkRatedMatches()` runs API calls in parallel via `async/awaitAll`
+
+### 6.18. Passenger Ride Cancellation
+`PUT /api/ride-requests/:id/cancel` sets request status to `cancelled` and updates any related match status. The backend waits for the match status update to complete before responding (not fire-and-forget).
+
+`PassengerViewModel` uses a **separate `cancelError` state** (not `errorMessage`) so cancel failures show as inline text near the cancel button instead of triggering the full-screen error overlay.
+
 ---
 
 ## 7. Backend API Endpoints — Complete Reference
@@ -272,6 +303,9 @@ HomeScreen's departure time card is clickable — opens Android's native `DatePi
 | POST | `/api/logout` | Destroy session + clear cookie |
 | GET | `/api/auth/status` | Returns `{isAuthenticated, user}` |
 | GET | `/api/config` | Returns `{olaMapsApiKey}` |
+| POST | `/api/forgot-password` | Send password reset OTP to email |
+| POST | `/api/reset-password` | Verify OTP and set new password |
+| DELETE | `/api/account` | Delete account (transactional cascade) |
 
 ### Profile (all require auth)
 | Method | Endpoint | Description |
@@ -308,6 +342,7 @@ HomeScreen's departure time card is clickable — opens Android's native `DatePi
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/ride-requests` | Create ride request |
+| PUT | `/api/ride-requests/:id/cancel` | Cancel ride request (passenger) |
 | GET | `/api/available-drivers?pickup_lat=...` | Find matching drivers |
 
 ### Matches
@@ -322,6 +357,13 @@ HomeScreen's departure time card is clickable — opens Android's native `DatePi
 |--------|----------|-------------|
 | POST | `/api/cost-sharing/calculate` | Calculate fare |
 | GET | `/api/cost-sharing/fuel-prices` | Fuel prices by vehicle/fuel type |
+
+### Ratings
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/ratings` | Submit rating (1-5) + optional review |
+| GET | `/api/ratings/:userId` | Get user's average rating & count |
+| GET | `/api/ratings/check/:matchId` | Check if current user rated a match |
 
 ---
 
@@ -389,6 +431,18 @@ HomeScreen's departure time card is clickable — opens Android's native `DatePi
 | fuel_type | TEXT | "petrol", "diesel", "cng", "electric" |
 | cost_per_km | REAL | |
 
+### ratings
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | Auto-increment |
+| trip_id | INTEGER FK→trips | |
+| match_id | INTEGER FK→matches | UNIQUE with rater_id |
+| rater_id | INTEGER FK→users | Who is rating |
+| rated_id | INTEGER FK→users | Who is being rated |
+| rating | INTEGER | 1-5 (CHECK constraint) |
+| review | TEXT | Optional review text |
+| created_at | DATETIME | Default CURRENT_TIMESTAMP |
+
 ---
 
 ## 9. Color Theme (Color.kt)
@@ -443,7 +497,20 @@ data class UpdateProfileRequest(
 - `AvailableDriver` — returned by `/api/available-drivers`, used in `DriverCard`
 - `MatchData` — uses `@SerializedName(alternate=[...])` for flexible parsing
 - `CostSharingResponse` — `baseTripCost`, `costPerPassenger`, `driverSaved`, `co2SavedKg`
-- `MyRide` — `userRole` field distinguishes "driver" vs "passenger" rides
+- `MyRide` — `userRole` field distinguishes "driver" vs "passenger" rides; `matchId` and `driverUserId` used for rating flow
+
+### New models (added for recent features)
+```kotlin
+// Password reset
+data class ForgotPasswordRequest(val email: String)
+data class ResetPasswordRequest(val email: String, val otp: String, val newPassword: String)
+
+// Ratings
+data class SubmitRatingRequest(val matchId: Int, val rating: Int, val review: String?)
+data class UserRatingResponse(val average: Double?, val count: Int)
+data class RatingCheckResponse(val hasRated: Boolean, val rating: RatingData?)
+data class RatingData(val rating: Int, val review: String?, val createdAt: String?)
+```
 
 ---
 
@@ -501,7 +568,6 @@ node server.js       # → http://localhost:3000
 ## 14. Known Limitations / TODOs
 
 - No push notifications (FCM) — only in-app Socket.IO
-- No trip completion flow (driver marking ride as "done")
 - No payment integration
 - No dark mode toggle (theme supports it, no user switch)
 - Resend API key hardcoded — should use env var
@@ -510,4 +576,5 @@ node server.js       # → http://localhost:3000
 - Profile photos stored as base64 in SQLite — should use file storage / S3 for production
 - Phone OTP logged to console (no real SMS gateway like Twilio)
 - No image compression on server side
-- Rating system is cosmetic (always shows 5.0)
+- Only passengers can rate drivers (not vice versa)
+- Password reset OTP stored in-memory (lost on server restart)
