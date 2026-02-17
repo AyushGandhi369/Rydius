@@ -73,6 +73,7 @@ class SocketManager {
 
     // ── Listen for new passenger request (driver side) ──────────
     fun onNewPassengerRequest(listener: (JSONObject) -> Unit) {
+        socket?.off("passenger-request")
         socket?.on("passenger-request") { args ->
             if (args.isNotEmpty()) {
                 try {

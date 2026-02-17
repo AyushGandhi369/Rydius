@@ -91,18 +91,26 @@ class PassengerViewModel : ViewModel() {
                     )
                 )
 
-                reqResult.fold(
+                val rideRequestCreated = reqResult.fold(
                     onSuccess = { response ->
                         if (response.rideRequestId != null) {
                             rideRequestId = response.rideRequestId
+                            true
                         } else {
                             errorMessage = response.message ?: "Failed to create ride request"
+                            false
                         }
                     },
                     onFailure = { e ->
                         errorMessage = e.message
+                        false
                     }
                 )
+
+                if (!rideRequestCreated) {
+                    isLoading = false
+                    return@launch
+                }
 
                 // 3. Calculate cost
                 tripRepo.calculateCost(
@@ -150,7 +158,11 @@ class PassengerViewModel : ViewModel() {
         pickupLat: Double, pickupLng: Double,
         dropoffLat: Double, dropoffLng: Double
     ) {
-        val reqId = rideRequestId ?: return
+        val reqId = rideRequestId
+        if (reqId == null) {
+            errorMessage = "Ride request is not ready yet. Please retry."
+            return
+        }
         selectedDriverTripId = driver.tripId
 
         viewModelScope.launch {

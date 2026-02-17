@@ -107,4 +107,26 @@ interface ApiService {
 
     @GET("api/cost-sharing/fuel-prices")
     suspend fun getFuelPrices(): Response<FuelPricesResponse>
+
+    // ── Profile ─────────────────────────────────────────────────
+    @GET("api/profile")
+    suspend fun getProfile(): Response<ProfileResponse>
+
+    @PUT("api/profile")
+    suspend fun updateProfile(@Body body: UpdateProfileRequest): Response<ApiResponse>
+
+    @POST("api/profile/photo")
+    suspend fun uploadProfilePhoto(@Body body: UploadPhotoRequest): Response<UploadPhotoResponse>
+
+    @DELETE("api/profile/photo")
+    suspend fun deleteProfilePhoto(): Response<ApiResponse>
+
+    @POST("api/profile/verify-phone/send")
+    suspend fun sendPhoneOtp(@Body body: SendPhoneOtpRequest): Response<PhoneOtpResponse>
+
+    @POST("api/profile/verify-phone/confirm")
+    suspend fun verifyPhoneOtp(@Body body: VerifyPhoneOtpRequest): Response<ApiResponse>
+
+    @GET("api/profile/completion")
+    suspend fun getProfileCompletion(): Response<ProfileCompletionResponse>
 }

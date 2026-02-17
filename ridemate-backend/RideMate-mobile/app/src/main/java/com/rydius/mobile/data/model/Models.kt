@@ -59,6 +59,28 @@ data class CreateMatchRequest(
 
 data class UpdateMatchStatusRequest(val status: String)
 
+// ── Profile ─────────────────────────────────────────────────────
+
+data class UpdateProfileRequest(
+    val name: String? = null,
+    val phone: String? = null,
+    val gender: String? = null,
+    @SerializedName("date_of_birth")     val dateOfBirth: String? = null,
+    @SerializedName("vehicle_number")    val vehicleNumber: String? = null,
+    @SerializedName("vehicle_model")     val vehicleModel: String? = null,
+    val bio: String? = null,
+    @SerializedName("home_address")      val homeAddress: String? = null,
+    @SerializedName("work_address")      val workAddress: String? = null,
+    @SerializedName("emergency_contact") val emergencyContact: String? = null,
+    @SerializedName("preferred_role")    val preferredRole: String? = null
+)
+
+data class UploadPhotoRequest(val photo: String)
+
+data class SendPhoneOtpRequest(val phone: String)
+
+data class VerifyPhoneOtpRequest(val otp: String)
+
 data class CalculateCostRequest(
     @SerializedName("distanceInKm")       val distanceInKm: Double,
     @SerializedName("vehicleType")        val vehicleType: String = "4W",
@@ -92,6 +114,59 @@ data class UserInfo(
     val id: Int = -1,
     val name: String = "",
     val email: String = ""
+)
+
+// ── Profile response ────────────────────────────────────────────
+
+data class ProfileResponse(
+    val success: Boolean = false,
+    val profile: UserProfile? = null
+)
+
+data class UserProfile(
+    val id: Int = 0,
+    val name: String = "",
+    val email: String = "",
+    val phone: String? = null,
+    @SerializedName("is_phone_verified") val isPhoneVerified: Int = 0,
+    val gender: String? = null,
+    @SerializedName("date_of_birth")     val dateOfBirth: String? = null,
+    @SerializedName("vehicle_number")    val vehicleNumber: String? = null,
+    @SerializedName("vehicle_model")     val vehicleModel: String? = null,
+    @SerializedName("profile_photo_url") val profilePhotoUrl: String? = null,
+    val bio: String? = null,
+    @SerializedName("home_address")      val homeAddress: String? = null,
+    @SerializedName("work_address")      val workAddress: String? = null,
+    @SerializedName("emergency_contact") val emergencyContact: String? = null,
+    @SerializedName("preferred_role")    val preferredRole: String? = "both"
+) {
+    val isPhoneVerifiedBool: Boolean get() = isPhoneVerified == 1
+    val phoneVerified: Boolean get() = isPhoneVerifiedBool
+}
+
+data class ProfileCompletionResponse(
+    val success: Boolean = false,
+    val total: Int = 0,
+    val filled: Int = 0,
+    val percentage: Int = 0,
+    val fields: List<ProfileField> = emptyList()
+)
+
+data class ProfileField(
+    val name: String = "",
+    val filled: Boolean = false
+)
+
+data class UploadPhotoResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    @SerializedName("profile_photo_url") val profilePhotoUrl: String? = null
+)
+
+data class PhoneOtpResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    @SerializedName("dev_otp") val devOtp: String? = null
 )
 
 data class ConfigResponse(
@@ -235,7 +310,7 @@ data class CreateMatchResponse(
 )
 
 data class MatchData(
-    val id: Int = 0,
+    @SerializedName(value = "id", alternate = ["match_id"]) val id: Int = 0,
     @SerializedName("trip_id")          val tripId: Int = 0,
     @SerializedName("ride_request_id")  val rideRequestId: Int = 0,
     @SerializedName("pickup_point_lat") val pickupLat: Double? = null,
@@ -243,7 +318,7 @@ data class MatchData(
     @SerializedName("dropoff_point_lat") val dropoffLat: Double? = null,
     @SerializedName("dropoff_point_lng") val dropoffLng: Double? = null,
     @SerializedName("fare_amount")       val fare: Double? = null,
-    val status: String = "",
+    @SerializedName(value = "status", alternate = ["match_status"]) val status: String = "",
     @SerializedName("passenger_name")   val passengerName: String? = null,
     @SerializedName("driver_name")      val driverName: String? = null,
     @SerializedName("pickup_location")  val pickupLocation: String? = null,
@@ -268,7 +343,8 @@ data class CostSharingResponse(
 )
 
 data class FuelPricesResponse(
-    val prices: List<FuelPrice>? = null
+    @SerializedName("2W") val twoW: Map<String, Double> = emptyMap(),
+    @SerializedName("4W") val fourW: Map<String, Double> = emptyMap()
 )
 
 data class FuelPrice(
@@ -287,10 +363,10 @@ data class MyRide(
     @SerializedName("driver_id")         val driverId: Int = 0,
     @SerializedName("start_location")    val startLocation: String = "",
     @SerializedName("end_location")      val endLocation: String = "",
-    @SerializedName("start_location_lat") val startLat: Double = 0.0,
-    @SerializedName("start_location_lng") val startLng: Double = 0.0,
-    @SerializedName("end_location_lat")  val endLat: Double = 0.0,
-    @SerializedName("end_location_lng")  val endLng: Double = 0.0,
+    @SerializedName("start_lat")         val startLat: Double = 0.0,
+    @SerializedName("start_lng")         val startLng: Double = 0.0,
+    @SerializedName("end_lat")           val endLat: Double = 0.0,
+    @SerializedName("end_lng")           val endLng: Double = 0.0,
     @SerializedName("distance_km")       val distanceKm: Double = 0.0,
     @SerializedName("duration_minutes")  val durationMinutes: Int = 0,
     @SerializedName("departure_time")    val departureTime: String = "",

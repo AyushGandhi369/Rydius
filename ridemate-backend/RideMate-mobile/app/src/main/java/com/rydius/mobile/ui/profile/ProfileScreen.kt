@@ -1,11 +1,11 @@
 package com.rydius.mobile.ui.profile
 
-import androidx.compose.foundation.background
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpCenter
@@ -16,9 +16,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -31,21 +36,44 @@ import com.rydius.mobile.ui.theme.*
 fun ProfileScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
-    authVm: AuthViewModel = viewModel()
+    onNavigateToEditProfile: () -> Unit = {},
+    authVm: AuthViewModel = viewModel(),
+    profileVm: ProfileViewModel = viewModel()
 ) {
     val session = RideMateApp.instance.sessionManager
-    val userName = session.userName
-    val userEmail = session.userEmail
+    val profile = profileVm.profile
+    val userName = profile?.name ?: session.userName
+    val userEmail = profile?.email ?: session.userEmail
     val initials = userName.split(" ")
         .take(2)
         .mapNotNull { it.firstOrNull()?.uppercase() }
         .joinToString("")
         .ifEmpty { "U" }
 
+    // Sign-out confirmation
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Sign Out", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to sign out?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogoutDialog = false
+                    authVm.logout(onLogout)
+                }) { Text("Sign Out", color = Error, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Profile") },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -53,7 +81,6 @@ fun ProfileScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Primary,
-                    titleContentColor = TextOnPrimary,
                     navigationIconContentColor = TextOnPrimary
                 )
             )
@@ -64,50 +91,71 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
+                .background(SurfaceLight)
         ) {
-            // Profile header
+            // ═══════════════════════════════════════════════════
+            //  HERO HEADER (Uber-style)
+            // ═══════════════════════════════════════════════════
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(Primary, PrimaryVariant)
                         )
-                    ),
-                contentAlignment = Alignment.Center
+                    )
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Avatar
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(Modifier.height(8.dp))
+
+                    // Avatar with photo
                     Box(
                         modifier = Modifier
-                            .size(80.dp)
+                            .size(96.dp)
+                            .shadow(8.dp, CircleShape)
                             .clip(CircleShape)
-                            .background(Secondary),
-                        contentAlignment = Alignment.Center
+                            .clickable { onNavigateToEditProfile() }
                     ) {
-                        Text(
-                            text = initials,
-                            color = TextOnPrimary,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        val photoUrl = profile?.profilePhotoUrl
+                        if (photoUrl != null && photoUrl.startsWith("data:image")) {
+                            val base64Data = photoUrl.substringAfter("base64,")
+                            val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+                            val bitmap = remember(photoUrl) {
+                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            }
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Profile photo",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Secondary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    initials, color = TextOnPrimary,
+                                    fontSize = 32.sp, fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
 
-                    // Online dot
-                    Box(
-                        modifier = Modifier
-                            .offset(x = 28.dp, y = (-16).dp)
-                            .size(14.dp)
-                            .clip(CircleShape)
-                            .background(Success)
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     Text(
                         text = userName.ifEmpty { "User" },
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.headlineSmall,
                         color = TextOnPrimary,
                         fontWeight = FontWeight.Bold
                     )
@@ -117,32 +165,60 @@ fun ProfileScreen(
                         color = TextOnPrimary.copy(alpha = 0.7f)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // Phone verified badge
+                    if (profile?.phone != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Phone, null,
+                                tint = TextOnPrimary.copy(alpha = 0.6f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                profile.phone ?: "",
+                                color = TextOnPrimary.copy(alpha = 0.7f),
+                                fontSize = 13.sp
+                            )
+                            if (profile.isPhoneVerifiedBool) {
+                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.Verified, "Verified",
+                                    tint = Success,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                    }
 
-                    // Rating
+                    Spacer(Modifier.height(12.dp))
+
+                    // Rating row
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         repeat(5) {
                             Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
+                                Icons.Default.Star, null,
                                 tint = Warning,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("5.0", color = TextOnPrimary, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.width(4.dp))
+                        Text("5.0", color = TextOnPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Profile progress
+            // ═══════════════════════════════════════════════════
+            //  PROFILE COMPLETION CARD
+            // ═══════════════════════════════════════════════════
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(12.dp)
+                    .padding(horizontal = 16.dp)
+                    .offset(y = (-16).dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = CardLight)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -150,74 +226,235 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Profile Completion", fontWeight = FontWeight.Medium)
-                        Text("7/8", color = Secondary, fontWeight = FontWeight.Bold)
+                        Column {
+                            Text(
+                                "Profile Completion",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                "${profileVm.completionFilled} of ${profileVm.completionTotal} completed",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (profileVm.completionPercentage >= 80) Success.copy(alpha = 0.15f)
+                                    else Secondary.copy(alpha = 0.15f)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                "${profileVm.completionPercentage}%",
+                                fontWeight = FontWeight.Bold,
+                                color = if (profileVm.completionPercentage >= 80) Success else Secondary,
+                                fontSize = 14.sp
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
                     LinearProgressIndicator(
-                        progress = { 0.875f },
+                        progress = { profileVm.completionPercentage / 100f },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = Secondary,
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = if (profileVm.completionPercentage >= 80) Success else Secondary,
                         trackColor = SurfaceLight
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Menu items
-            ProfileMenuItem(Icons.Default.Verified, "Verify Organization", "Get verified badge")
-            ProfileMenuItem(Icons.Default.AccountBalanceWallet, "Transactions", "View payment history")
-            ProfileMenuItem(Icons.Default.WorkspacePremium, "Buy Prime", "Unlock premium features")
-            ProfileMenuItem(Icons.Default.CardGiftcard, "Invite & Earn", "Share and earn rewards")
-            ProfileMenuItem(Icons.AutoMirrored.Filled.HelpCenter, "Help & FAQ", "Get support")
-            ProfileMenuItem(Icons.Default.ContactSupport, "Contact Us", "Reach our team")
-            ProfileMenuItem(Icons.Default.Settings, "Settings", "App preferences")
-
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Sign out
-            var showLogoutDialog by remember { mutableStateOf(false) }
-
-            if (showLogoutDialog) {
-                AlertDialog(
-                    onDismissRequest = { showLogoutDialog = false },
-                    title = { Text("Sign Out") },
-                    text = { Text("Are you sure you want to sign out?") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showLogoutDialog = false
-                            authVm.logout(onLogout)
-                        }) { Text("Sign Out", color = Error) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
-                    }
-                )
-            }
-
-            TextButton(
-                onClick = { showLogoutDialog = true },
+            // ═══════════════════════════════════════════════════
+            //  QUICK INFO TILES (Uber-style grid)
+            // ═══════════════════════════════════════════════════
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Logout,
-                    contentDescription = null,
-                    tint = Error,
-                    modifier = Modifier.size(20.dp)
+                QuickInfoTile(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.DirectionsCar,
+                    label = "Vehicle",
+                    value = profile?.vehicleNumber ?: "Not added",
+                    isSet = profile?.vehicleNumber != null
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Sign Out", color = Error, fontWeight = FontWeight.Medium)
+                QuickInfoTile(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.Wc,
+                    label = "Gender",
+                    value = when (profile?.gender) {
+                        "male" -> "Male"
+                        "female" -> "Female"
+                        "other" -> "Other"
+                        "prefer_not_to_say" -> "—"
+                        else -> "Not set"
+                    },
+                    isSet = profile?.gender != null
+                )
+                QuickInfoTile(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.Cake,
+                    label = "DOB",
+                    value = profile?.dateOfBirth ?: "Not set",
+                    isSet = profile?.dateOfBirth != null
+                )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(Modifier.height(16.dp))
+
+            // ═══════════════════════════════════════════════════
+            //  MENU ITEMS
+            // ═══════════════════════════════════════════════════
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = CardLight)
+            ) {
+                Column {
+                    ProfileMenuItem(
+                        icon = Icons.Default.Edit,
+                        title = "Edit Profile",
+                        subtitle = "Name, photo, phone, vehicle & more",
+                        onClick = onNavigateToEditProfile,
+                        iconTint = Secondary
+                    )
+                    MenuDivider()
+                    ProfileMenuItem(
+                        icon = Icons.Default.Shield,
+                        title = "Safety",
+                        subtitle = "Emergency contacts & trusted contacts",
+                        iconTint = Success
+                    )
+                    MenuDivider()
+                    ProfileMenuItem(
+                        icon = Icons.Default.Verified,
+                        title = "Verify Organization",
+                        subtitle = "Get a verified badge",
+                        iconTint = Info
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = CardLight)
+            ) {
+                Column {
+                    ProfileMenuItem(
+                        icon = Icons.Default.AccountBalanceWallet,
+                        title = "Transactions",
+                        subtitle = "View payment history",
+                        iconTint = Warning
+                    )
+                    MenuDivider()
+                    ProfileMenuItem(
+                        icon = Icons.Default.WorkspacePremium,
+                        title = "Buy Prime",
+                        subtitle = "Unlock premium features",
+                        badgeText = "NEW",
+                        iconTint = Warning
+                    )
+                    MenuDivider()
+                    ProfileMenuItem(
+                        icon = Icons.Default.CardGiftcard,
+                        title = "Invite & Earn",
+                        subtitle = "Share and earn rewards",
+                        iconTint = Success
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = CardLight)
+            ) {
+                Column {
+                    ProfileMenuItem(
+                        icon = Icons.AutoMirrored.Filled.HelpCenter,
+                        title = "Help & FAQ",
+                        subtitle = "Get support",
+                        iconTint = Info
+                    )
+                    MenuDivider()
+                    ProfileMenuItem(
+                        icon = Icons.Default.ContactSupport,
+                        title = "Contact Us",
+                        subtitle = "Reach our team",
+                        iconTint = Secondary
+                    )
+                    MenuDivider()
+                    ProfileMenuItem(
+                        icon = Icons.Default.Settings,
+                        title = "Settings",
+                        subtitle = "App preferences",
+                        iconTint = TextSecondary
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ═══════════════════════════════════════════════════
+            //  SIGN OUT
+            // ═══════════════════════════════════════════════════
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                colors = CardDefaults.cardColors(containerColor = CardLight)
+            ) {
+                Surface(
+                    onClick = { showLogoutDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = CardLight,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Logout, null,
+                            tint = Error, modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Sign Out",
+                            color = Error,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
 
             // App version
             Text(
@@ -226,8 +463,62 @@ fun ProfileScreen(
                 color = TextSecondary,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    .padding(bottom = 32.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPOSABLE COMPONENTS
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun QuickInfoTile(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    label: String,
+    value: String,
+    isSet: Boolean
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = CardLight)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(if (isSet) Secondary.copy(alpha = 0.12f) else SurfaceLight),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon, null,
+                    tint = if (isSet) Secondary else TextSecondary.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                label,
+                fontSize = 11.sp,
+                color = TextSecondary,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                value,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = if (isSet) TextPrimary else TextSecondary.copy(alpha = 0.5f)
             )
         }
     }
@@ -237,11 +528,15 @@ fun ProfileScreen(
 private fun ProfileMenuItem(
     icon: ImageVector,
     title: String,
-    subtitle: String
+    subtitle: String,
+    onClick: () -> Unit = {},
+    iconTint: androidx.compose.ui.graphics.Color = Secondary,
+    badgeText: String? = null
 ) {
     Surface(
-        onClick = { /* TODO */ },
-        modifier = Modifier.fillMaxWidth()
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        color = CardLight
     ) {
         Row(
             modifier = Modifier
@@ -249,18 +544,57 @@ private fun ProfileMenuItem(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = null, tint = Secondary, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(16.dp))
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(iconTint.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = iconTint, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Medium)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    if (badgeText != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Secondary)
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                badgeText,
+                                color = TextOnPrimary,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    fontSize = 12.sp
+                )
             }
             Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = TextSecondary,
+                Icons.Default.ChevronRight, null,
+                tint = TextSecondary.copy(alpha = 0.4f),
                 modifier = Modifier.size(20.dp)
             )
         }
     }
+}
+
+@Composable
+private fun MenuDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 70.dp, end = 16.dp),
+        color = DividerColor.copy(alpha = 0.5f),
+        thickness = 0.5.dp
+    )
 }

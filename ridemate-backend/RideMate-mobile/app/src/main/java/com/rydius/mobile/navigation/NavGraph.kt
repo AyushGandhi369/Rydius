@@ -12,6 +12,7 @@ import com.rydius.mobile.ui.auth.SignupScreen
 import com.rydius.mobile.ui.driver.DriverConfirmationScreen
 import com.rydius.mobile.ui.home.HomeScreen
 import com.rydius.mobile.ui.passenger.PassengerConfirmationScreen
+import com.rydius.mobile.ui.profile.EditProfileScreen
 import com.rydius.mobile.ui.profile.ProfileScreen
 import com.rydius.mobile.ui.rides.MyRidesScreen
 
@@ -25,6 +26,7 @@ object Routes {
     const val PASSENGER = "passenger/{startLocation}/{endLocation}/{startLat}/{startLng}/{endLat}/{endLng}/{seats}/{departureTime}"
     const val MY_RIDES = "my_rides"
     const val PROFILE  = "profile"
+    const val EDIT_PROFILE = "edit_profile"
 
     fun driverRoute(
         startLocation: String, endLocation: String,
@@ -175,7 +177,16 @@ fun AppNavGraph(
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onNavigateToEditProfile = {
+                    navController.navigate(Routes.EDIT_PROFILE)
                 }
+            )
+        }
+
+        composable(Routes.EDIT_PROFILE) {
+            EditProfileScreen(
+                onBack = { navController.popBackStack() }
             )
         }
     }

@@ -158,6 +158,7 @@ class DriverViewModel : ViewModel() {
         socketManager.connect()
         val userId = RideMateApp.instance.sessionManager.userId
         socketManager.joinTrip(tripId, userId)
+        socketManager.off("passenger-request")
         socketManager.onNewPassengerRequest { _ ->
             viewModelScope.launch {
                 fetchPendingRequests(tripId)
@@ -208,6 +209,7 @@ class DriverViewModel : ViewModel() {
                 onSuccess = {
                     tripCancelled = true
                     searchingPassengers = false
+                    socketManager.off("passenger-request")
                     socketManager.leaveTrip()
                     onCancelled()
                 },
@@ -229,6 +231,7 @@ class DriverViewModel : ViewModel() {
 
     override fun onCleared() {
         searchingPassengers = false
+        socketManager.off("passenger-request")
         socketManager.leaveTrip()
         super.onCleared()
     }

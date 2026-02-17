@@ -71,6 +71,10 @@ class AuthViewModel : ViewModel() {
             errorMessage = "Please fill in all fields"
             return
         }
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+            errorMessage = "Please enter a valid email address"
+            return
+        }
         if (password.length < 6) {
             errorMessage = "Password must be at least 6 characters"
             return

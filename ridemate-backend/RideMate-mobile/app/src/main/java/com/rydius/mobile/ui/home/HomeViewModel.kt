@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.android.gms.location.LocationServices
 import com.rydius.mobile.data.model.Prediction
 import com.rydius.mobile.data.repository.MapRepository
+import com.rydius.mobile.util.LocationHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -133,7 +134,7 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-                val location = fusedClient.lastLocation.await()
+                val location = fusedClient.lastLocation.await() ?: LocationHelper.getCurrentLocation(context)
                 if (location != null) {
                     pickupLat = location.latitude
                     pickupLng = location.longitude

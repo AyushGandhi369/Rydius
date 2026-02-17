@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
@@ -41,16 +42,21 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             if (session.isLoggedIn) {
                 val authRepo = AuthRepository()
-                val authenticated = authRepo.checkAuthStatus()
-                    .getOrNull()
-                    ?.isAuthenticated == true
-                if (!authenticated) {
-                    session.clear()
-                    ApiClient.clearCookies()
-                    isLoggedIn = false
-                } else {
-                    isLoggedIn = true
-                }
+                authRepo.checkAuthStatus().fold(
+                    onSuccess = { status ->
+                        if (status.isAuthenticated) {
+                            isLoggedIn = true
+                        } else {
+                            session.clear()
+                            ApiClient.clearCookies()
+                            isLoggedIn = false
+                        }
+                    },
+                    onFailure = {
+                        // Keep local session on transient network failure.
+                        isLoggedIn = session.isLoggedIn
+                    }
+                )
             } else {
                 isLoggedIn = false
             }
@@ -80,10 +86,11 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            registerReceiver(
+                            ContextCompat.registerReceiver(
+                                this@MainActivity,
                                 receiver,
                                 IntentFilter(ApiClient.ACTION_SESSION_EXPIRED),
-                                RECEIVER_NOT_EXPORTED
+                                ContextCompat.RECEIVER_NOT_EXPORTED
                             )
                             onDispose { unregisterReceiver(receiver) }
                         }

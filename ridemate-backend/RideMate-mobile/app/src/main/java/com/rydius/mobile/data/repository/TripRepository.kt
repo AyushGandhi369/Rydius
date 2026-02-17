@@ -8,59 +8,47 @@ class TripRepository {
     private val api = ApiClient.api
 
     suspend fun createTrip(request: CreateTripRequest): Result<CreateTripResponse> =
-        safeCall { api.createTrip(request) }
+        safeApiCall { api.createTrip(request) }
 
     suspend fun getActiveTrip(): Result<ActiveTripResponse> =
-        safeCall { api.getActiveTrip() }
+        safeApiCall { api.getActiveTrip() }
 
     suspend fun getTrip(id: Int): Result<TripData> =
-        safeCall { api.getTrip(id) }
+        safeApiCall { api.getTrip(id) }
 
     suspend fun getTripRequests(tripId: Int): Result<List<MatchData>> =
-        safeCall { api.getTripRequests(tripId) }
+        safeApiCall { api.getTripRequests(tripId) }
 
     suspend fun cancelTrip(id: Int): Result<ApiResponse> =
-        safeCall { api.cancelTrip(id) }
+        safeApiCall { api.cancelTrip(id) }
 
     suspend fun createRideRequest(request: CreateRideRequestRequest): Result<CreateRideRequestResponse> =
-        safeCall { api.createRideRequest(request) }
+        safeApiCall { api.createRideRequest(request) }
 
     suspend fun getAvailableDrivers(
         pickupLat: Double, pickupLng: Double,
         dropoffLat: Double, dropoffLng: Double,
         distanceKm: Double
     ): Result<List<AvailableDriver>> =
-        safeCall {
+        safeApiCall {
             api.getAvailableDrivers(pickupLat, pickupLng, dropoffLat, dropoffLng, distanceKm)
         }
 
     suspend fun createMatch(request: CreateMatchRequest): Result<CreateMatchResponse> =
-        safeCall { api.createMatch(request) }
+        safeApiCall { api.createMatch(request) }
 
     suspend fun updateMatchStatus(matchId: Int, status: String): Result<ApiResponse> =
-        safeCall { api.updateMatchStatus(matchId, UpdateMatchStatusRequest(status)) }
+        safeApiCall { api.updateMatchStatus(matchId, UpdateMatchStatusRequest(status)) }
 
     suspend fun getActiveMatches(): Result<List<MatchData>> =
-        safeCall { api.getActiveMatches() }
+        safeApiCall { api.getActiveMatches() }
 
     suspend fun calculateCost(request: CalculateCostRequest): Result<CostSharingResponse> =
-        safeCall { api.calculateCost(request) }
+        safeApiCall { api.calculateCost(request) }
 
     suspend fun getFuelPrices(): Result<FuelPricesResponse> =
-        safeCall { api.getFuelPrices() }
+        safeApiCall { api.getFuelPrices() }
 
     suspend fun getMyRides(): Result<MyRidesResponse> =
-        safeCall { api.getMyRides() }
+        safeApiCall { api.getMyRides() }
 }
-
-private suspend fun <T> safeCall(block: suspend () -> retrofit2.Response<T>): Result<T> =
-    try {
-        val response = block()
-        if (response.isSuccessful && response.body() != null) {
-            Result.success(response.body()!!)
-        } else {
-            Result.failure(Exception(response.errorBody()?.string() ?: "Unknown error"))
-        }
-    } catch (e: Exception) {
-        Result.failure(e)
-    }

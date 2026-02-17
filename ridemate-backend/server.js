@@ -5,6 +5,7 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcrypt');
 const path = require('path');
 const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
 const { Resend } = require('resend');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
@@ -90,12 +91,68 @@ function isValidCoordinate(lat, lng) {
         latNum >= -90 && latNum <= 90 &&
         lngNum >= -180 && lngNum <= 180;
 }
+
+function hasValue(value) {
+    return value !== undefined && value !== null && value !== '';
+}
 const saltRounds = 10;
 
 // Temporary store for OTPs and user data
 const otpStore = {};
+const rateLimitBuckets = new Map();
 
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
+
+function createRateLimiter({ windowMs, max, message, keyFn }) {
+    const getKey = keyFn || ((req) => req.ip || 'unknown');
+    return (req, res, next) => {
+        const now = Date.now();
+        const key = getKey(req);
+        const bucketKey = `${req.path}|${key}`;
+        const current = rateLimitBuckets.get(bucketKey);
+
+        if (!current || now > current.resetAt) {
+            rateLimitBuckets.set(bucketKey, { count: 1, resetAt: now + windowMs });
+            return next();
+        }
+
+        if (current.count >= max) {
+            const retryAfterSec = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+            res.setHeader('Retry-After', retryAfterSec.toString());
+            return res.status(429).json({ message });
+        }
+
+        current.count += 1;
+        rateLimitBuckets.set(bucketKey, current);
+        return next();
+    };
+}
+
+const authRateLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: 'Too many authentication attempts. Please try again in 15 minutes.'
+});
+
+const otpRateLimiter = createRateLimiter({
+    windowMs: 10 * 60 * 1000,
+    max: 8,
+    message: 'Too many OTP attempts. Please try again in 10 minutes.',
+    keyFn: (req) => {
+        const email = sanitizeString(req.body?.email || '');
+        const phone = sanitizeString(req.body?.phone || '');
+        return `${req.ip || 'unknown'}:${email || phone || 'anon'}`;
+    }
+});
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, bucket] of rateLimitBuckets.entries()) {
+        if (!bucket || now > bucket.resetAt) {
+            rateLimitBuckets.delete(key);
+        }
+    }
+}, 10 * 60 * 1000).unref();
 
 // CORS middleware for Expo web support
 app.use((req, res, next) => {
@@ -121,8 +178,16 @@ app.use(express.static(path.join(__dirname, '..')));
 app.set('trust proxy', 1);
 
 // Session configuration
+const sessionStore = new SQLiteStore({
+    db: 'sessions.db',
+    dir: __dirname,
+    table: 'sessions',
+    concurrentDB: true
+});
+
 app.use(session({
     secret: process.env.SESSION_SECRET || 'ridemate-dev-secret-change-in-production',
+    store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -141,6 +206,12 @@ const db = new sqlite3.Database('./database.db', (err) => {
 });
 
 db.serialize(() => {
+    // Concurrency + integrity tuning for SQLite.
+    db.run(`PRAGMA journal_mode = WAL`);
+    db.run(`PRAGMA synchronous = NORMAL`);
+    db.run(`PRAGMA foreign_keys = ON`);
+    db.run(`PRAGMA busy_timeout = 5000`);
+
     // Create users table
     db.run(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,6 +234,7 @@ db.serialize(() => {
         distance_km REAL,
         duration_minutes INTEGER,
         departure_time DATETIME,
+        available_seats INTEGER DEFAULT 1,
         status TEXT DEFAULT 'active',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -208,11 +280,16 @@ db.serialize(() => {
     // Create indexes
     db.run(`CREATE INDEX IF NOT EXISTS idx_trips_driver_status ON trips(driver_id, status)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_trips_status_departure ON trips(status, departure_time)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_trips_status_departure_expr ON trips(status, datetime(departure_time))`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_trips_driver_created ON trips(driver_id, created_at DESC)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_ride_requests_passenger_status ON ride_requests(passenger_id, status)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_ride_requests_status ON ride_requests(status)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_ride_requests_passenger_created ON ride_requests(passenger_id, created_at DESC)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_trip ON matches(trip_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_request ON matches(ride_request_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_matches_trip_status ON matches(trip_id, status)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_matches_request_status ON matches(ride_request_id, status)`);
 
     // Create fuel_config table (admin-editable fuel prices)
     db.run(`CREATE TABLE IF NOT EXISTS fuel_config (
@@ -223,7 +300,60 @@ db.serialize(() => {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(vehicle_type, fuel_type)
     )`);
+
+    // Backward-compatible migration for older DBs created before available_seats existed.
+    db.run(`ALTER TABLE trips ADD COLUMN available_seats INTEGER DEFAULT 1`, (err) => {
+        if (err && !String(err.message || '').includes('duplicate column name')) {
+            console.error('Failed to add available_seats column:', err.message);
+        }
+    });
+    db.run(`ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`, (err) => {
+        if (err && !String(err.message || '').includes('duplicate column name')) {
+            console.error('Failed to add users.updated_at column:', err.message);
+        }
+    });
+
+    // ── User profile columns migration ──────────────────────
+    const profileColumns = [
+        { name: 'phone', type: 'TEXT' },
+        { name: 'is_phone_verified', type: 'INTEGER DEFAULT 0' },
+        { name: 'gender', type: 'TEXT' },
+        { name: 'date_of_birth', type: 'TEXT' },
+        { name: 'vehicle_number', type: 'TEXT' },
+        { name: 'vehicle_model', type: 'TEXT' },
+        { name: 'profile_photo_url', type: 'TEXT' },
+        { name: 'bio', type: 'TEXT' },
+        { name: 'home_address', type: 'TEXT' },
+        { name: 'work_address', type: 'TEXT' },
+        { name: 'emergency_contact', type: 'TEXT' },
+        { name: 'preferred_role', type: "TEXT DEFAULT 'both'" },
+    ];
+    for (const col of profileColumns) {
+        db.run(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`, (err) => {
+            if (err && !String(err.message || '').includes('duplicate column name')) {
+                console.error(`Failed to add ${col.name} column:`, err.message);
+            }
+        });
+    }
 });
+
+function cleanupExpiredTrips() {
+    db.run(
+        `UPDATE trips
+         SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+         WHERE status = 'active'
+           AND departure_time IS NOT NULL
+           AND datetime(departure_time) <= datetime('now', '-24 hours')`,
+        (err) => {
+            if (err) {
+                console.error('Failed to cleanup expired trips:', err.message);
+            }
+        }
+    );
+}
+
+cleanupExpiredTrips();
+setInterval(cleanupExpiredTrips, 15 * 60 * 1000).unref();
 
 // Initialize Resend with API key from environment variables
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -504,7 +634,7 @@ function checkRouteMatch(routePolyline, pickupLat, pickupLng, dropoffLat, dropof
     }
 }
 
-app.post('/api/signup', (req, res) => {
+app.post('/api/signup', authRateLimiter, (req, res) => {
     const name = sanitizeString(req.body.name);
     const email = sanitizeString(req.body.email);
     const password = req.body.password;
@@ -553,7 +683,7 @@ app.post('/api/signup', (req, res) => {
     });
 });
 
-app.post('/api/verify-otp', (req, res) => {
+app.post('/api/verify-otp', otpRateLimiter, (req, res) => {
     const { email, otp } = req.body;
 
     if (!email || !otp) {
@@ -590,7 +720,7 @@ app.post('/api/verify-otp', (req, res) => {
     }
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', authRateLimiter, (req, res) => {
     const email = sanitizeString(req.body.email);
     const password = req.body.password;
 
@@ -676,6 +806,239 @@ function requireAuth(req, res, next) {
 }
 
 // ============= CONFIG ENDPOINT =============
+
+// ============= PROFILE ENDPOINTS =============
+
+// Phone OTP store (in-memory, same pattern as email OTP)
+const phoneOtpStore = {};
+
+// Get user profile
+app.get('/api/profile', requireAuth, (req, res) => {
+    db.get(
+        `SELECT id, name, email, phone, is_phone_verified, gender, date_of_birth,
+                vehicle_number, vehicle_model, profile_photo_url, bio,
+                home_address, work_address, emergency_contact, preferred_role
+         FROM users WHERE id = ?`,
+        [req.session.userId],
+        (err, user) => {
+            if (err) return res.status(500).json({ message: 'Database error' });
+            if (!user) return res.status(404).json({ message: 'User not found' });
+            res.json({ success: true, profile: user });
+        }
+    );
+});
+
+// Update user profile
+app.put('/api/profile', requireAuth, (req, res) => {
+    const allowedFields = [
+        'name', 'phone', 'gender', 'date_of_birth',
+        'vehicle_number', 'vehicle_model', 'bio',
+        'home_address', 'work_address', 'emergency_contact', 'preferred_role'
+    ];
+
+    const updates = [];
+    const values = [];
+
+    for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+            const value = typeof req.body[field] === 'string'
+                ? sanitizeString(req.body[field])
+                : req.body[field];
+            updates.push(`${field} = ?`);
+            values.push(value);
+        }
+    }
+
+    // If phone is manually changed, it must be re-verified.
+    if (req.body.phone !== undefined) {
+        const normalizedPhone = sanitizeString(String(req.body.phone)).replace(/[\s-]/g, '');
+        if (normalizedPhone && !/^\+?\d{10,15}$/.test(normalizedPhone)) {
+            return res.status(400).json({ message: 'Valid phone number is required' });
+        }
+        updates.push(`is_phone_verified = 0`);
+    }
+
+    if (updates.length === 0) {
+        return res.status(400).json({ message: 'No fields to update' });
+    }
+
+    // Validate gender if provided
+    if (req.body.gender && !['male', 'female', 'other', 'prefer_not_to_say'].includes(req.body.gender)) {
+        return res.status(400).json({ message: 'Invalid gender value' });
+    }
+
+    // Validate vehicle number format if provided (Indian format)
+    if (req.body.vehicle_number) {
+        const vn = sanitizeString(req.body.vehicle_number).toUpperCase();
+        if (vn.length > 0 && !/^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}$/.test(vn.replace(/[\s-]/g, ''))) {
+            return res.status(400).json({ message: 'Invalid vehicle number format' });
+        }
+    }
+
+    values.push(req.session.userId);
+
+    db.run(
+        `UPDATE users SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        values,
+        function (err) {
+            if (err) {
+                // If updated_at column doesn't exist, retry without it
+                if (String(err.message || '').includes('updated_at')) {
+                    db.run(
+                        `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+                        values,
+                        function (retryErr) {
+                            if (retryErr) return res.status(500).json({ message: 'Database error' });
+                            // Update session name if changed
+                            if (req.body.name) req.session.userName = sanitizeString(req.body.name);
+                            res.json({ success: true, message: 'Profile updated' });
+                        }
+                    );
+                    return;
+                }
+                return res.status(500).json({ message: 'Database error' });
+            }
+            // Update session name if changed
+            if (req.body.name) req.session.userName = sanitizeString(req.body.name);
+            res.json({ success: true, message: 'Profile updated' });
+        }
+    );
+});
+
+// Upload profile photo (base64)
+app.post('/api/profile/photo', requireAuth, (req, res) => {
+    const { photo } = req.body; // base64 encoded image
+    if (typeof photo !== 'string' || !photo.trim()) {
+        return res.status(400).json({ message: 'Photo data is required' });
+    }
+
+    // Accept only image data URIs and validate decoded payload size.
+    const dataUriMatch = photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/i);
+    if (!dataUriMatch) {
+        return res.status(400).json({ message: 'Invalid image format' });
+    }
+
+    const base64Payload = dataUriMatch[2];
+    const decodedSizeBytes = Buffer.byteLength(base64Payload, 'base64');
+    if (!Number.isFinite(decodedSizeBytes) || decodedSizeBytes <= 0 || decodedSizeBytes > 3 * 1024 * 1024) {
+        return res.status(400).json({ message: 'Photo too large (max 3MB)' });
+    }
+
+    db.run(
+        `UPDATE users SET profile_photo_url = ? WHERE id = ?`,
+        [photo, req.session.userId],
+        function (err) {
+            if (err) return res.status(500).json({ message: 'Database error' });
+            res.json({ success: true, message: 'Photo uploaded', profile_photo_url: photo });
+        }
+    );
+});
+
+// Remove profile photo
+app.delete('/api/profile/photo', requireAuth, (req, res) => {
+    db.run(
+        `UPDATE users SET profile_photo_url = NULL WHERE id = ?`,
+        [req.session.userId],
+        function (err) {
+            if (err) return res.status(500).json({ message: 'Database error' });
+            res.json({ success: true, message: 'Photo removed' });
+        }
+    );
+});
+
+// Send phone verification OTP
+app.post('/api/profile/verify-phone/send', requireAuth, otpRateLimiter, (req, res) => {
+    const phone = sanitizeString(req.body.phone);
+    if (!phone || !/^\+?\d{10,15}$/.test(phone.replace(/[\s-]/g, ''))) {
+        return res.status(400).json({ message: 'Valid phone number is required' });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    phoneOtpStore[req.session.userId] = {
+        otp,
+        phone,
+        expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
+    };
+
+    // In production, send via SMS gateway (Twilio, etc.)
+    // For now, log to console and return success
+    console.log(`[Phone OTP] User ${req.session.userId} → ${phone}: ${otp}`);
+
+    res.json({
+        success: true,
+        message: 'OTP sent to your phone',
+        // DEV ONLY — remove in production
+        ...(process.env.NODE_ENV !== 'production' && { dev_otp: otp })
+    });
+});
+
+// Verify phone OTP
+app.post('/api/profile/verify-phone/confirm', requireAuth, otpRateLimiter, (req, res) => {
+    const { otp } = req.body;
+    const stored = phoneOtpStore[req.session.userId];
+
+    if (!stored) {
+        return res.status(400).json({ message: 'No OTP request found. Please request a new OTP.' });
+    }
+
+    if (Date.now() > stored.expiresAt) {
+        delete phoneOtpStore[req.session.userId];
+        return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+    }
+
+    if (stored.otp !== String(otp)) {
+        return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    // OTP verified — update user phone + verified flag
+    db.run(
+        `UPDATE users SET phone = ?, is_phone_verified = 1 WHERE id = ?`,
+        [stored.phone, req.session.userId],
+        function (err) {
+            delete phoneOtpStore[req.session.userId];
+            if (err) return res.status(500).json({ message: 'Database error' });
+            res.json({ success: true, message: 'Phone verified successfully' });
+        }
+    );
+});
+
+// Get profile completion percentage
+app.get('/api/profile/completion', requireAuth, (req, res) => {
+    db.get(
+        `SELECT name, email, phone, is_phone_verified, gender, date_of_birth,
+                vehicle_number, profile_photo_url, bio, emergency_contact
+         FROM users WHERE id = ?`,
+        [req.session.userId],
+        (err, user) => {
+            if (err) return res.status(500).json({ message: 'Database error' });
+            if (!user) return res.status(404).json({ message: 'User not found' });
+
+            const fields = [
+                { name: 'Name', filled: !!user.name },
+                { name: 'Email', filled: !!user.email },
+                { name: 'Phone', filled: !!user.phone && !!user.is_phone_verified },
+                { name: 'Gender', filled: !!user.gender },
+                { name: 'Date of Birth', filled: !!user.date_of_birth },
+                { name: 'Profile Photo', filled: !!user.profile_photo_url },
+                { name: 'Vehicle', filled: !!user.vehicle_number },
+                { name: 'Emergency Contact', filled: !!user.emergency_contact },
+                { name: 'Bio', filled: !!user.bio },
+            ];
+
+            const filled = fields.filter(f => f.filled).length;
+            res.json({
+                success: true,
+                total: fields.length,
+                filled,
+                percentage: Math.round((filled / fields.length) * 100),
+                fields
+            });
+        }
+    );
+});
+
+// ============= CONFIG ENDPOINT (original) =============
 
 // Serve Ola Maps API key to frontend
 app.get('/api/config', requireAuth, (req, res) => {
@@ -875,15 +1238,26 @@ app.post('/api/trips', requireAuth, (req, res) => {
     const start_location = sanitizeString(req.body.start_location);
     const end_location = sanitizeString(req.body.end_location);
     const { start_lat, start_lng, end_lat, end_lng,
-        route_polyline, distance_km, duration_minutes, departure_time } = req.body;
+        route_polyline, distance_km, duration_minutes, departure_time, available_seats } = req.body;
 
-    if (!start_location || !end_location || !start_lat || !start_lng || !end_lat || !end_lng) {
+    if (!start_location || !end_location ||
+        !hasValue(start_lat) || !hasValue(start_lng) ||
+        !hasValue(end_lat) || !hasValue(end_lng)) {
         return res.status(400).json({ message: 'Missing required location data' });
     }
 
     if (!isValidCoordinate(start_lat, start_lng) || !isValidCoordinate(end_lat, end_lng)) {
         return res.status(400).json({ message: 'Invalid coordinate values' });
     }
+
+    const seats = Math.max(1, Math.min(8, parseInt(available_seats, 10) || 1));
+    const parsedDeparture = new Date(departure_time);
+    const normalizedDepartureTime =
+        !departure_time ||
+        String(departure_time).toLowerCase() === 'now' ||
+        Number.isNaN(parsedDeparture.getTime())
+            ? new Date().toISOString()
+            : parsedDeparture.toISOString();
 
     // First check if the driver already has an active trip
     const checkActiveTripSql = `SELECT id FROM trips WHERE driver_id = ? AND status = 'active' LIMIT 1`;
@@ -903,12 +1277,12 @@ app.post('/api/trips', requireAuth, (req, res) => {
 
         // No active trip found, proceed with creating new trip
         const sql = `INSERT INTO trips (driver_id, start_location, end_location, start_lat, start_lng, 
-                     end_lat, end_lng, route_polyline, distance_km, duration_minutes, departure_time) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+                     end_lat, end_lng, route_polyline, distance_km, duration_minutes, departure_time, available_seats) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
         db.run(sql, [req.session.userId, start_location, end_location, start_lat, start_lng,
             end_lat, end_lng, route_polyline, distance_km, duration_minutes,
-        departure_time || new Date().toISOString()], function (err) {
+            normalizedDepartureTime, seats], function (err) {
             if (err) {
                 console.error('Error creating trip:', err);
                 return res.status(500).json({ message: 'Error creating trip' });
@@ -932,7 +1306,7 @@ app.get('/api/trips/my-rides', requireAuth, (req, res) => {
 
     // Rides as passenger (via matches)
     const passengerSql = `SELECT t.*, 'passenger' as user_role, m.status as match_status,
-                           ud.name as driver_name, m.fare_share
+                           ud.name as driver_name, m.fare_amount as fare_share
                            FROM matches m 
                            JOIN trips t ON m.trip_id = t.id 
                            JOIN ride_requests rr ON m.ride_request_id = rr.id
@@ -997,8 +1371,13 @@ app.get('/api/trips/:id', requireAuth, (req, res) => {
 app.get('/api/trips/:id/route-segment', requireAuth, (req, res) => {
     const { pickup_lat, pickup_lng, dropoff_lat, dropoff_lng } = req.query;
 
-    if (!pickup_lat || !pickup_lng || !dropoff_lat || !dropoff_lng) {
+    if (!hasValue(pickup_lat) || !hasValue(pickup_lng) ||
+        !hasValue(dropoff_lat) || !hasValue(dropoff_lng)) {
         return res.status(400).json({ message: 'Missing required coordinates' });
+    }
+
+    if (!isValidCoordinate(pickup_lat, pickup_lng) || !isValidCoordinate(dropoff_lat, dropoff_lng)) {
+        return res.status(400).json({ message: 'Invalid coordinate values' });
     }
 
     // First get the trip with polyline
@@ -1152,29 +1531,44 @@ app.get('/api/trips/:id/route-segment', requireAuth, (req, res) => {
 
 // Get passenger requests for a trip
 app.get('/api/trips/:id/requests', requireAuth, (req, res) => {
-    const sql = `SELECT m.id as match_id, m.trip_id, m.ride_request_id, m.pickup_point_lat, 
-                 m.pickup_point_lng, m.dropoff_point_lat, m.dropoff_point_lng, 
-                 m.fare_amount, m.status as match_status, m.created_at as match_created_at,
-                 rr.pickup_location, rr.dropoff_location, rr.pickup_lat, rr.pickup_lng, 
-                 rr.dropoff_lat, rr.dropoff_lng, rr.requested_time,
-                 u.name as passenger_name 
-                 FROM matches m 
-                 JOIN ride_requests rr ON m.ride_request_id = rr.id 
-                 JOIN users u ON rr.passenger_id = u.id 
-                 WHERE m.trip_id = ? AND m.status = 'pending'`;
+    const tripId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(tripId) || tripId <= 0) {
+        return res.status(400).json({ message: 'Invalid trip id' });
+    }
 
-    db.all(sql, [req.params.id], (err, requests) => {
-        if (err) {
-            return res.status(500).json({ message: 'Error fetching requests' });
+    const ownershipSql = `SELECT id FROM trips WHERE id = ? AND driver_id = ? LIMIT 1`;
+    db.get(ownershipSql, [tripId, req.session.userId], (ownershipErr, ownedTrip) => {
+        if (ownershipErr) {
+            return res.status(500).json({ message: 'Error checking trip ownership' });
         }
-        // Map the results to use match_id as id for easier access
-        const mappedRequests = requests.map(req => ({
-            ...req,
-            id: req.match_id, // Use match_id as the primary id
-            match_id: req.match_id, // Keep match_id for clarity
-            ride_request_id: req.ride_request_id // Keep ride_request_id for reference
-        }));
-        res.json(mappedRequests);
+        if (!ownedTrip) {
+            return res.status(403).json({ message: 'Not authorized to view this trip requests list' });
+        }
+
+        const sql = `SELECT m.id as match_id, m.trip_id, m.ride_request_id, m.pickup_point_lat, 
+                     m.pickup_point_lng, m.dropoff_point_lat, m.dropoff_point_lng, 
+                     m.fare_amount, m.status as match_status, m.created_at as match_created_at,
+                     rr.pickup_location, rr.dropoff_location, rr.pickup_lat, rr.pickup_lng, 
+                     rr.dropoff_lat, rr.dropoff_lng, rr.requested_time,
+                     u.name as passenger_name 
+                     FROM matches m 
+                     JOIN ride_requests rr ON m.ride_request_id = rr.id 
+                     JOIN users u ON rr.passenger_id = u.id 
+                     WHERE m.trip_id = ? AND m.status = 'pending'`;
+
+        db.all(sql, [tripId], (err, requests) => {
+            if (err) {
+                return res.status(500).json({ message: 'Error fetching requests' });
+            }
+            // Map the results to use match_id as id for easier access
+            const mappedRequests = requests.map(req => ({
+                ...req,
+                id: req.match_id, // Use match_id as the primary id
+                match_id: req.match_id, // Keep match_id for clarity
+                ride_request_id: req.ride_request_id // Keep ride_request_id for reference
+            }));
+            res.json(mappedRequests);
+        });
     });
 });
 
@@ -1230,8 +1624,9 @@ app.post('/api/ride-requests', requireAuth, (req, res) => {
     const { pickup_lat, pickup_lng,
         dropoff_lat, dropoff_lng, requested_time } = req.body;
 
-    if (!pickup_location || !dropoff_location || !pickup_lat || !pickup_lng ||
-        !dropoff_lat || !dropoff_lng) {
+    if (!pickup_location || !dropoff_location ||
+        !hasValue(pickup_lat) || !hasValue(pickup_lng) ||
+        !hasValue(dropoff_lat) || !hasValue(dropoff_lng)) {
         return res.status(400).json({ message: 'Missing required location data' });
     }
 
@@ -1261,7 +1656,8 @@ app.post('/api/ride-requests', requireAuth, (req, res) => {
 app.get('/api/available-drivers', requireAuth, (req, res) => {
     const { pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, distance_km } = req.query;
 
-    if (!pickup_lat || !pickup_lng || !dropoff_lat || !dropoff_lng) {
+    if (!hasValue(pickup_lat) || !hasValue(pickup_lng) ||
+        !hasValue(dropoff_lat) || !hasValue(dropoff_lng)) {
         return res.status(400).json({ message: 'Missing location parameters' });
     }
 
@@ -1270,7 +1666,10 @@ app.get('/api/available-drivers', requireAuth, (req, res) => {
     }
 
     // Calculate dynamic threshold based on distance
-    const distKm = parseFloat(distance_km) || 10;
+    const requestedDistanceKm = parseFloat(distance_km);
+    const distKm = Number.isFinite(requestedDistanceKm) && requestedDistanceKm > 0
+        ? requestedDistanceKm
+        : 10;
     let threshold = 800; // Base threshold in meters
 
     // More generous threshold calculation for longer distances
@@ -1294,7 +1693,9 @@ app.get('/api/available-drivers', requireAuth, (req, res) => {
                  FROM trips t 
                  JOIN users u ON t.driver_id = u.id 
                  WHERE t.status = 'active' 
-                 AND t.departure_time > datetime('now')`;
+                 AND datetime(t.departure_time) > datetime('now')
+                 AND t.route_polyline IS NOT NULL
+                 AND t.route_polyline != ''`;
 
     db.all(sql, [], (err, trips) => {
         if (err) {
@@ -1377,65 +1778,128 @@ app.post('/api/matches', requireAuth, (req, res) => {
     const { trip_id, ride_request_id, pickup_lat, pickup_lng, dropoff_lat,
         dropoff_lng, fare_amount } = req.body;
 
-    if (!trip_id || !ride_request_id || !pickup_lat || !pickup_lng ||
-        !dropoff_lat || !dropoff_lng || !fare_amount) {
+    if (!hasValue(trip_id) || !hasValue(ride_request_id) ||
+        !hasValue(pickup_lat) || !hasValue(pickup_lng) ||
+        !hasValue(dropoff_lat) || !hasValue(dropoff_lng) ||
+        !hasValue(fare_amount)) {
         return res.status(400).json({ message: 'Missing required match data' });
     }
 
-    const sql = `INSERT INTO matches (trip_id, ride_request_id, pickup_point_lat, 
-                 pickup_point_lng, dropoff_point_lat, dropoff_point_lng, fare_amount) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`;
+    if (!isValidCoordinate(pickup_lat, pickup_lng) || !isValidCoordinate(dropoff_lat, dropoff_lng)) {
+        return res.status(400).json({ message: 'Invalid coordinate values' });
+    }
 
-    db.run(sql, [trip_id, ride_request_id, pickup_lat, pickup_lng,
-        dropoff_lat, dropoff_lng, fare_amount], function (err) {
-            if (err) {
-                if (err.code === 'SQLITE_CONSTRAINT') {
-                    return res.status(409).json({ message: 'Match already exists' });
-                }
-                console.error('Error creating match:', err);
-                return res.status(500).json({ message: 'Error creating match' });
+    const tripId = parseInt(trip_id, 10);
+    const rideRequestId = parseInt(ride_request_id, 10);
+    const fareAmount = parseFloat(fare_amount);
+
+    if (!Number.isFinite(tripId) || tripId <= 0 || !Number.isFinite(rideRequestId) || rideRequestId <= 0) {
+        return res.status(400).json({ message: 'Invalid trip or ride request id' });
+    }
+
+    if (!Number.isFinite(fareAmount) || fareAmount <= 0) {
+        return res.status(400).json({ message: 'fare_amount must be a positive number' });
+    }
+
+    const verifySql = `SELECT rr.id as ride_request_id, rr.passenger_id, rr.status as request_status,
+                       t.id as trip_id, t.status as trip_status, t.driver_id
+                       FROM ride_requests rr
+                       JOIN trips t ON t.id = ?
+                       WHERE rr.id = ?`;
+
+    db.get(verifySql, [tripId, rideRequestId], (verifyErr, validationRow) => {
+        if (verifyErr) {
+            console.error('Error validating match request:', verifyErr);
+            return res.status(500).json({ message: 'Error validating match request' });
+        }
+
+        if (!validationRow) {
+            return res.status(404).json({ message: 'Trip or ride request not found' });
+        }
+
+        if (validationRow.passenger_id !== req.session.userId) {
+            return res.status(403).json({ message: 'You can only create matches for your own ride request' });
+        }
+
+        if (validationRow.driver_id === req.session.userId) {
+            return res.status(400).json({ message: 'You cannot match with your own trip' });
+        }
+
+        if (validationRow.trip_status !== 'active') {
+            return res.status(409).json({ message: 'Trip is no longer active' });
+        }
+
+        if (!['searching', 'matched'].includes(validationRow.request_status)) {
+            return res.status(409).json({ message: 'Ride request is not open for new matches' });
+        }
+
+        const existingActiveMatchSql = `SELECT id FROM matches
+                                        WHERE ride_request_id = ?
+                                          AND status IN ('pending', 'accepted')
+                                        LIMIT 1`;
+        db.get(existingActiveMatchSql, [rideRequestId], (activeMatchErr, existingMatch) => {
+            if (activeMatchErr) {
+                console.error('Error checking existing matches:', activeMatchErr);
+                return res.status(500).json({ message: 'Error validating match state' });
+            }
+            if (existingMatch) {
+                return res.status(409).json({ message: 'You already have an active match request' });
             }
 
-            const matchId = this.lastID;
+            const sql = `INSERT INTO matches (trip_id, ride_request_id, pickup_point_lat, 
+                         pickup_point_lng, dropoff_point_lat, dropoff_point_lng, fare_amount) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
-            // Update ride request status
-            db.run(`UPDATE ride_requests SET status = 'matched' WHERE id = ?`,
-                [ride_request_id], (err) => {
-                    if (err) console.error('Error updating ride request status:', err);
+            db.run(sql, [tripId, rideRequestId, pickup_lat, pickup_lng,
+                dropoff_lat, dropoff_lng, fareAmount], function (err) {
+                    if (err) {
+                        if (err.code === 'SQLITE_CONSTRAINT') {
+                            return res.status(409).json({ message: 'Match already exists' });
+                        }
+                        console.error('Error creating match:', err);
+                        return res.status(500).json({ message: 'Error creating match' });
+                    }
+
+                    const matchId = this.lastID;
+
+                    // Update ride request status
+                    db.run(`UPDATE ride_requests SET status = 'matched', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                        [rideRequestId], (err) => {
+                            if (err) console.error('Error updating ride request status:', err);
+                        });
+
+                    // Instant WebSocket notification to driver
+                    const getPassengerSql = `SELECT rr.*, u.name as passenger_name 
+                                         FROM ride_requests rr 
+                                         JOIN users u ON rr.passenger_id = u.id 
+                                         WHERE rr.id = ?`;
+
+                    db.get(getPassengerSql, [rideRequestId], (err, passengerData) => {
+                        if (!err && passengerData) {
+                            const notificationData = {
+                                id: matchId,
+                                passenger_name: passengerData.passenger_name,
+                                pickup_location: passengerData.pickup_location,
+                                dropoff_location: passengerData.dropoff_location,
+                                pickup_lat: pickup_lat,
+                                pickup_lng: pickup_lng,
+                                dropoff_lat: dropoff_lat,
+                                dropoff_lng: dropoff_lng,
+                                fare_amount: fareAmount
+                            };
+
+                            // Send instant notification to driver via WebSocket
+                            notifyDriverInstantly(tripId, notificationData);
+                        }
+                    });
+
+                    res.status(201).json({
+                        message: 'Match created successfully',
+                        matchId: matchId
+                    });
                 });
-
-            // 🚨 INSTANT WEBSOCKET NOTIFICATION TO DRIVER 🚨
-            // Get passenger details for the notification
-            const getPassengerSql = `SELECT rr.*, u.name as passenger_name 
-                                 FROM ride_requests rr 
-                                 JOIN users u ON rr.passenger_id = u.id 
-                                 WHERE rr.id = ?`;
-
-            db.get(getPassengerSql, [ride_request_id], (err, passengerData) => {
-                if (!err && passengerData) {
-                    // Create the notification data
-                    const notificationData = {
-                        id: matchId,
-                        passenger_name: passengerData.passenger_name,
-                        pickup_location: passengerData.pickup_location,
-                        dropoff_location: passengerData.dropoff_location,
-                        pickup_lat: pickup_lat,
-                        pickup_lng: pickup_lng,
-                        dropoff_lat: dropoff_lat,
-                        dropoff_lng: dropoff_lng,
-                        fare_amount: fare_amount
-                    };
-
-                    // Send instant notification to driver via WebSocket
-                    notifyDriverInstantly(trip_id, notificationData);
-                }
-            });
-
-            res.status(201).json({
-                message: 'Match created successfully',
-                matchId: matchId
-            });
         });
+    });
 });
 
 // Accept or reject a match
@@ -1481,18 +1945,43 @@ app.put('/api/matches/:id/status', requireAuth, (req, res) => {
 
             console.log(`Match ${req.params.id} ${status} by user ${req.session.userId}`);
 
-            // If accepted, update ride request status
+            const respondSuccess = () => {
+                res.json({
+                    message: `Match ${status} successfully`,
+                    matchId: req.params.id,
+                    status: status
+                });
+            };
+
             if (status === 'accepted') {
-                db.run(`UPDATE ride_requests SET status = 'confirmed' WHERE id = ?`,
-                    [match.ride_request_id], (err) => {
-                        if (err) console.error('Error updating ride request status:', err);
+                db.run(`UPDATE ride_requests SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                    [match.ride_request_id], (rrErr) => {
+                        if (rrErr) console.error('Error updating ride request status:', rrErr);
+                        respondSuccess();
                     });
+                return;
             }
 
-            res.json({
-                message: `Match ${status} successfully`,
-                matchId: req.params.id,
-                status: status
+            // If rejected and no other active matches exist, reopen the ride request for searching.
+            const activeCountSql = `SELECT COUNT(*) as active_count
+                                    FROM matches
+                                    WHERE ride_request_id = ?
+                                      AND id != ?
+                                      AND status IN ('pending', 'accepted')`;
+            db.get(activeCountSql, [match.ride_request_id, req.params.id], (countErr, row) => {
+                if (countErr) {
+                    console.error('Error checking remaining active matches:', countErr);
+                    return respondSuccess();
+                }
+                const activeCount = row?.active_count || 0;
+                if (activeCount > 0) {
+                    return respondSuccess();
+                }
+                db.run(`UPDATE ride_requests SET status = 'searching', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                    [match.ride_request_id], (rrErr) => {
+                        if (rrErr) console.error('Error reopening ride request:', rrErr);
+                        respondSuccess();
+                    });
             });
         });
     });
@@ -1500,8 +1989,37 @@ app.put('/api/matches/:id/status', requireAuth, (req, res) => {
 
 // Get active matches for current user
 app.get('/api/matches/active', requireAuth, (req, res) => {
-    const sql = `SELECT m.*, t.*, rr.*, 
-                 ud.name as driver_name, up.name as passenger_name
+    const sql = `SELECT
+                 m.id as match_id,
+                 m.trip_id,
+                 m.ride_request_id,
+                 m.pickup_point_lat,
+                 m.pickup_point_lng,
+                 m.dropoff_point_lat,
+                 m.dropoff_point_lng,
+                 m.fare_amount,
+                 m.status as match_status,
+                 m.created_at as match_created_at,
+                 t.start_location,
+                 t.end_location,
+                 t.start_lat,
+                 t.start_lng,
+                 t.end_lat,
+                 t.end_lng,
+                 t.distance_km,
+                 t.duration_minutes,
+                 t.departure_time,
+                 t.available_seats,
+                 t.status as trip_status,
+                 rr.pickup_location,
+                 rr.dropoff_location,
+                 rr.pickup_lat,
+                 rr.pickup_lng,
+                 rr.dropoff_lat,
+                 rr.dropoff_lng,
+                 rr.requested_time,
+                 ud.name as driver_name,
+                 up.name as passenger_name
                  FROM matches m 
                  JOIN trips t ON m.trip_id = t.id 
                  JOIN ride_requests rr ON m.ride_request_id = rr.id 
@@ -1546,15 +2064,16 @@ function loadFuelPrices(callback) {
 // POST /api/cost-sharing/calculate — public, no auth needed
 app.post('/api/cost-sharing/calculate', (req, res) => {
     const { distanceInKm, vehicleType, fuelType, numberOfPassengers } = req.body;
+    const distance = parseFloat(distanceInKm);
 
-    if (!distanceInKm || distanceInKm <= 0) {
+    if (!Number.isFinite(distance) || distance <= 0) {
         return res.status(400).json({ message: 'distanceInKm is required and must be positive' });
     }
 
     loadFuelPrices((fuelPrices) => {
         try {
             const result = calculateCostSharing({
-                distanceInKm: parseFloat(distanceInKm),
+                distanceInKm: distance,
                 vehicleType: vehicleType || '4W',
                 fuelType: fuelType || 'petrol',
                 numberOfPassengers: parseInt(numberOfPassengers) || 1,
@@ -1577,8 +2096,9 @@ app.get('/api/cost-sharing/fuel-prices', (req, res) => {
 // PUT /api/cost-sharing/fuel-prices — admin update
 app.put('/api/cost-sharing/fuel-prices', requireAuth, (req, res) => {
     const { vehicleType, fuelType, costPerKm } = req.body;
+    const parsedCost = parseFloat(costPerKm);
 
-    if (!vehicleType || !fuelType || !costPerKm) {
+    if (!vehicleType || !fuelType || !Number.isFinite(parsedCost) || parsedCost <= 0) {
         return res.status(400).json({ message: 'vehicleType, fuelType, and costPerKm are required' });
     }
     if (!['2W', '4W'].includes(vehicleType.toUpperCase())) {
@@ -1593,7 +2113,7 @@ app.put('/api/cost-sharing/fuel-prices', requireAuth, (req, res) => {
                  ON CONFLICT(vehicle_type, fuel_type)
                  DO UPDATE SET cost_per_km = ?, updated_at = datetime('now')`;
 
-    db.run(sql, [vehicleType.toUpperCase(), fuelType.toLowerCase(), parseFloat(costPerKm), parseFloat(costPerKm)], function (err) {
+    db.run(sql, [vehicleType.toUpperCase(), fuelType.toLowerCase(), parsedCost, parsedCost], function (err) {
         if (err) {
             return res.status(500).json({ message: 'Error updating fuel price' });
         }
@@ -1604,16 +2124,26 @@ app.put('/api/cost-sharing/fuel-prices', requireAuth, (req, res) => {
 // ─── Startup Validation ─────────────────────────────────────
 (function validateEnv() {
     const key = process.env.OLA_MAPS_API_KEY;
+    const nodeEnv = (process.env.NODE_ENV || 'development').toLowerCase();
+    const sessionSecret = process.env.SESSION_SECRET;
+
     if (!key || key === 'your-ola-maps-api-key-here') {
-        console.error('❌  FATAL: OLA_MAPS_API_KEY is missing or still set to placeholder.');
-        console.error('   Copy .env.example → .env and add your real Ola Maps API key.');
+        console.error('FATAL: OLA_MAPS_API_KEY is missing or still set to placeholder.');
+        console.error('Copy .env.example to .env and add your real Ola Maps API key.');
         process.exit(1);
     }
-    if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'change-me-to-a-random-secret') {
-        console.warn('⚠️  WARNING: SESSION_SECRET is missing or default. Set a strong random value in .env for production.');
+
+    const hasStrongSessionSecret = !!sessionSecret && sessionSecret !== 'ridemate-dev-secret-change-in-production';
+    if (nodeEnv === 'production' && !hasStrongSessionSecret) {
+        console.error('FATAL: SESSION_SECRET must be set to a strong random value in production.');
+        process.exit(1);
     }
+    if (!hasStrongSessionSecret) {
+        console.warn('WARNING: SESSION_SECRET is missing or weak. Set a strong random value in .env.');
+    }
+
     if (!process.env.RESEND_API_KEY) {
-        console.warn('⚠️  WARNING: RESEND_API_KEY not set. OTP emails will fail.');
+        console.warn('WARNING: RESEND_API_KEY not set. OTP emails will fail.');
     }
 })();
 

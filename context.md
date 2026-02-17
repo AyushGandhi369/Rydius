@@ -1,551 +1,491 @@
-# RideMate - Context Documentation
+﻿# Rydius — Context Documentation
 
-> **Last Updated:** January 28, 2026  
-> **Purpose:** This document provides a comprehensive overview of the RideMate codebase, its architecture, and tracks all changes made during development.
-
----
-
-## 📋 Table of Contents
-
-1. [Project Overview](#project-overview)
-2. [Technology Stack](#technology-stack)
-3. [Project Structure](#project-structure)
-4. [Database Schema](#database-schema)
-5. [API Endpoints](#api-endpoints)
-6. [Frontend Pages](#frontend-pages)
-7. [Real-Time Features](#real-time-features)
-8. [Authentication System](#authentication-system)
-9. [Changelog](#changelog)
+> **Last Updated:** February 18, 2026
+> **Purpose:** Single source of truth for any AI agent working on this codebase. Read this FIRST.
 
 ---
 
-## 🚗 Project Overview
+## 1. What This Project Is
 
-**RideMate** is a ride-sharing web application that connects drivers with passengers for carpooling. The application allows:
+**Rydius** (formerly RideMate) is a carpooling/ride-sharing platform for India. Drivers offer rides along their route; passengers search & match. Two components:
 
-- **Drivers** to offer rides by specifying their route
-- **Passengers** to search for available drivers along their desired route
-- **Smart route matching** using provider-agnostic encoded polyline data (Ola Maps)
-- **Real-time notifications** when passengers request rides from drivers
-- **Privacy-preserving** route segments (passengers only see relevant portions of driver routes)
+| Part | Stack | Location |
+|------|-------|----------|
+| **Backend** | Node.js + Express 5.1.0 + SQLite | `ridemate-backend/` |
+| **Android App** | Kotlin 2.0 + Jetpack Compose + Material 3 | `ridemate-backend/RideMate-mobile/` |
 
-### Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Route Matching** | Uses Haversine formula to match passenger pickup/dropoff with driver routes |
-| **Partial Rides** | Supports partial rides where passenger can be dropped at closest point on driver's route |
-| **Real-Time Notifications** | WebSocket-based instant notifications for drivers |
-| **Email Verification** | OTP-based email verification using Resend API |
-| **Fare Calculation** | Dynamic fare based on distance (₹5/km base rate with 14% platform fee) |
+The repo root also has legacy **web frontend** HTML/CSS/JS files. They are served by the backend for browser access but the Android app does NOT use them.
 
 ---
 
-## 🛠 Technology Stack
+## 2. Tech Stack — Android App
 
-### Backend
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Language | Kotlin | 2.0.0 |
+| UI | Jetpack Compose BOM | 2024.06.00 |
+| Material | Material 3 | (from BOM) |
+| Build | AGP | 8.6.1 |
+| compileSdk / targetSdk | 35 | minSdk 26 |
+| Networking | Retrofit 2 + OkHttp 4 | 2.11.0 / 4.12.0 |
+| WebSocket | Socket.IO Android client | 2.1.1 |
+| Maps | MapLibre Android SDK | 11.5.2 |
+| Map tiles | **Ola Maps** vector tiles | via style URL |
+| Location | Play Services Location | 21.3.0 |
+| Coroutines | kotlinx-coroutines-play-services | 1.8.1 |
+| Navigation | Navigation Compose | 2.7.7 |
+| Persistence | DataStore Preferences | 1.1.1 |
+| Images | Coil Compose | 2.7.0 |
+| Splash | core-splashscreen | 1.0.1 |
+| Architecture | MVVM (ViewModel + Repository + ApiService) | — |
+
+### What is **NOT** used (common AI mistake sources)
+- **NOT Google Maps** — MapLibre + Ola Maps tiles. No `com.google.android.gms:play-services-maps`.
+- **NOT Room / Hilt / Dagger / Koin** — no DI framework, no local database ORM.
+- **NOT Ktor** — Retrofit only.
+- **NOT DataStore Proto** — uses DataStore Preferences (SharedPreferences wrapper).
+- **NOT Accompanist** — all permissions handled via `ActivityResultContracts`.
+
+---
+
+## 3. Tech Stack — Backend
+
 | Technology | Version | Purpose |
-|------------|---------|---------|
-| **Node.js** | - | Runtime environment |
-| **Express.js** | 5.1.0 | Web framework |
-| **SQLite3** | 5.1.7 | Database |
-| **Socket.io** | 4.8.1 | Real-time WebSocket communication |
-| **bcrypt** | 6.0.0 | Password hashing |
-| **express-session** | 1.18.1 | Session management |
-| **Resend** | 4.6.0 | Email service (OTP) |
-| **nodemailer** | 7.0.5 | Email transport (alternative) |
+|-----------|---------|---------|
+| Node.js + Express | 5.1.0 | HTTP server |
+| SQLite3 | 5.1.7 | Database (file: `database.db`) |
+| Socket.io | 4.8.1 | WebSocket real-time |
+| bcrypt | 6.0.0 | Password hashing |
+| express-session | 1.18.1 | Cookie-based sessions |
+| Resend | 4.6.0 | Email OTP service |
 
-### Frontend
-| Technology | Purpose |
-|------------|---------|
-| **HTML5** | Page structure |
-| **Vanilla CSS** | Styling (no frameworks) |
-| **Vanilla JavaScript** | Client-side logic |
-| **Socket.io Client** | 4.8.1 | Real-time communication |
-| **Ola Maps API** | Maps, autocomplete, geocoding, and route visualization |
+Runs on **port 3000**. Emulator reaches it at `http://10.0.2.2:3000`. Physical devices need `RIDEMATE_BASE_URL=http://YOUR_PC_IP:3000`.
 
 ---
 
-## 📁 Project Structure
+## 4. Complete File Tree — Android App
 
 ```
-RideMate-main/
-├── 📄 server.js                    # Main Express server (1139 lines)
-├── 📄 database.db                  # SQLite database file
-├── 📄 database-schema.sql          # SQL schema reference
-├── 📄 package.json                 # Dependencies & scripts
-│
-├── 🌐 FRONTEND PAGES
-│   ├── index.html                  # Main landing page with search form
-│   ├── login.html                  # User login page
-│   ├── signup.html                 # User registration with OTP
-│   ├── driver-confirmation.html    # Driver trip confirmation & management
-│   └── passenger-confirmation.html # Passenger driver selection & booking
-│
-├── 🎨 STYLES
-│   ├── style.css                   # Main stylesheet (39KB)
-│   ├── auth.css                    # Authentication pages styles
-│   └── pwa-mobile.css              # PWA mobile optimizations ✨ NEW
-│
-├── 📜 SCRIPTS
-│   ├── auth.js                     # Login/Signup form handlers
-│   ├── global-notifications.js     # WebSocket notification manager
-│   └── service-worker.js           # PWA offline caching ✨ NEW
-│
-├── 📱 PWA ASSETS ✨ NEW
-│   ├── manifest.json               # PWA manifest file
-│   └── icons/                      # App icons (72px to 512px)
-│
-├── 📄 context.md                   # This documentation file
-└── 📁 node_modules/                # Dependencies
+RideMate-mobile/
+├── build.gradle.kts                     # Root build (plugins)
+├── settings.gradle.kts
+├── gradle.properties
+├── app/
+│   ├── build.gradle.kts                 # Dependencies, BuildConfig fields, ProGuard
+│   └── src/main/
+│       ├── AndroidManifest.xml          # Permissions: INTERNET, ACCESS_FINE/COARSE_LOCATION
+│       └── java/com/rydius/mobile/
+│           │
+│           ├── MainActivity.kt          # Entry point. BroadcastReceiver for ACTION_SESSION_EXPIRED
+│           ├── RideMateApp.kt           # Application class. Inits ApiClient, SessionManager
+│           │
+│           ├── data/
+│           │   ├── api/
+│           │   │   ├── ApiClient.kt     # Retrofit/OkHttp singleton. AuthInterceptor (401 handler)
+│           │   │   └── ApiService.kt    # ALL Retrofit endpoint definitions (~35 endpoints)
+│           │   ├── model/
+│           │   │   └── Models.kt        # ALL data classes — requests, responses, DTOs
+│           │   ├── repository/
+│           │   │   ├── AuthRepository.kt    # Auth + profile methods
+│           │   │   ├── MapRepository.kt     # Autocomplete, geocode, directions
+│           │   │   ├── TripRepository.kt    # Trips, ride requests, matches, cost
+│           │   │   └── SafeApiCall.kt       # Shared safeApiCall<T> utility
+│           │   └── socket/
+│           │       └── SocketManager.kt     # Socket.IO connection/events
+│           │
+│           ├── navigation/
+│           │   └── NavGraph.kt          # All routes. Uri.encode() for params.
+│           │                            # Routes: splash, login, signup, home,
+│           │                            #         driver/{...}, passenger/{...},
+│           │                            #         my_rides, profile, edit_profile
+│           │
+│           ├── ui/
+│           │   ├── auth/
+│           │   │   ├── AuthViewModel.kt     # Login/signup/OTP logic, email validation
+│           │   │   ├── LoginScreen.kt       # Email + password login form
+│           │   │   └── SignupScreen.kt      # Name/email/password + OTP verification
+│           │   │
+│           │   ├── components/              # Shared composables
+│           │   │   ├── BottomNavBar.kt      # Home/MyRides/Profile bottom nav
+│           │   │   ├── CostSharingCard.kt   # ⚠️ Param = "costData" (NOT "costSharing")
+│           │   │   ├── DriverCard.kt        # Driver info card in passenger view
+│           │   │   ├── LocationSearchBar.kt # Autocomplete text field
+│           │   │   ├── MapViewComposable.kt # MapLibre compose wrapper (see §6.4)
+│           │   │   └── RoleSelector.kt      # Driver/Rider toggle
+│           │   │
+│           │   ├── driver/
+│           │   │   ├── DriverConfirmationScreen.kt  # Trip creation + request management
+│           │   │   └── DriverViewModel.kt           # Trip lifecycle, socket events
+│           │   │
+│           │   ├── home/
+│           │   │   ├── HomeScreen.kt        # Main screen: location pickers, role, GPS
+│           │   │   └── HomeViewModel.kt     # Location state, fetchCurrentLocation()
+│           │   │
+│           │   ├── passenger/
+│           │   │   ├── PassengerConfirmationScreen.kt  # Driver selection, booking
+│           │   │   └── PassengerViewModel.kt           # Available drivers, match flow
+│           │   │
+│           │   ├── profile/
+│           │   │   ├── ProfileScreen.kt         # Uber-style profile overview (read-only)
+│           │   │   ├── EditProfileScreen.kt     # Full edit form (photo, phone verify, etc.)
+│           │   │   └── ProfileViewModel.kt      # Profile CRUD, photo upload, phone OTP
+│           │   │
+│           │   ├── rides/
+│           │   │   ├── MyRidesScreen.kt         # Tabs: Active / Completed / Cancelled
+│           │   │   └── MyRidesViewModel.kt      # Fetches /api/trips/my-rides
+│           │   │
+│           │   └── theme/
+│           │       ├── Color.kt             # Brand palette (see §8)
+│           │       ├── Theme.kt             # Material 3 theme
+│           │       └── Type.kt              # Typography
+│           │
+│           └── util/
+│               ├── Constants.kt             # BASE_URL, OLA_API_KEY, map defaults (Ahmedabad)
+│               ├── LocationHelper.kt        # Haversine, decodePolyline, closestPointOnSegment
+│               └── SessionManager.kt        # SharedPreferences-backed login state
 ```
 
 ---
 
-## 🗄 Database Schema
+## 5. Navigation Routes (NavGraph.kt)
 
-### Tables Overview
+| Route constant | Pattern | Screen |
+|---------------|---------|--------|
+| `SPLASH` | `"splash"` | Auto-redirect |
+| `LOGIN` | `"login"` | LoginScreen |
+| `SIGNUP` | `"signup"` | SignupScreen |
+| `HOME` | `"home"` | HomeScreen (with BottomNavBar) |
+| `DRIVER` | `"driver/{startLocation}/{endLocation}/..."` | DriverConfirmationScreen (8 path params) |
+| `PASSENGER` | `"passenger/{startLocation}/{endLocation}/..."` | PassengerConfirmationScreen (8 path params) |
+| `MY_RIDES` | `"my_rides"` | MyRidesScreen |
+| `PROFILE` | `"profile"` | ProfileScreen |
+| `EDIT_PROFILE` | `"edit_profile"` | EditProfileScreen |
 
-```mermaid
-erDiagram
-    users ||--o{ trips : creates
-    users ||--o{ ride_requests : creates
-    trips ||--o{ matches : has
-    ride_requests ||--o{ matches : has
-    
-    users {
-        int id PK
-        text name
-        text email UK
-        text password
-    }
-    
-    trips {
-        int id PK
-        int driver_id FK
-        text start_location
-        text end_location
-        real start_lat
-        real start_lng
-        real end_lat
-        real end_lng
-        text route_polyline
-        real distance_km
-        int duration_minutes
-        datetime departure_time
-        text status
-    }
-    
-    ride_requests {
-        int id PK
-        int passenger_id FK
-        text pickup_location
-        text dropoff_location
-        real pickup_lat
-        real pickup_lng
-        real dropoff_lat
-        real dropoff_lng
-        datetime requested_time
-        text travel_mode
-        text status
-    }
-    
-    matches {
-        int id PK
-        int trip_id FK
-        int ride_request_id FK
-        real pickup_point_lat
-        real pickup_point_lng
-        real dropoff_point_lat
-        real dropoff_point_lng
-        datetime estimated_pickup_time
-        decimal fare_amount
-        text status
-    }
-```
-
-### Table Details
-
-#### `users`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY AUTOINCREMENT |
-| name | TEXT | NOT NULL |
-| email | TEXT | NOT NULL, UNIQUE |
-| password | TEXT | NOT NULL (bcrypt hashed) |
-
-#### `trips` (Driver Offerings)
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER | Primary key |
-| driver_id | INTEGER | FK to users |
-| start_location | TEXT | Starting address |
-| end_location | TEXT | Destination address |
-| start_lat, start_lng | REAL | Start coordinates |
-| end_lat, end_lng | REAL | End coordinates |
-| route_polyline | TEXT | Encoded route polyline (Ola-compatible) |
-| distance_km | REAL | Total trip distance |
-| duration_minutes | INTEGER | Estimated duration |
-| departure_time | DATETIME | Scheduled departure |
-| status | TEXT | 'active', 'completed', 'cancelled' |
-
-#### `ride_requests` (Passenger Requests)
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER | Primary key |
-| passenger_id | INTEGER | FK to users |
-| pickup_location | TEXT | Pickup address |
-| dropoff_location | TEXT | Dropoff address |
-| pickup_lat, pickup_lng | REAL | Pickup coordinates |
-| dropoff_lat, dropoff_lng | REAL | Dropoff coordinates |
-| travel_mode | TEXT | 'bus', 'car', 'train' |
-| status | TEXT | 'searching', 'matched', 'completed', 'cancelled' |
-
-#### `matches` (Driver-Passenger Connections)
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER | Primary key |
-| trip_id | INTEGER | FK to trips |
-| ride_request_id | INTEGER | FK to ride_requests |
-| pickup_point_lat/lng | REAL | Actual pickup point on route |
-| dropoff_point_lat/lng | REAL | Actual dropoff point on route |
-| fare_amount | DECIMAL | Calculated fare |
-| status | TEXT | 'pending', 'accepted', 'rejected', 'completed' |
+**Navigation gotcha:** All string args in DRIVER/PASSENGER routes are `Uri.encode()`-ed. Never pass raw strings with `/` or special chars.
 
 ---
 
-## 🔌 API Endpoints
+## 6. Critical Patterns & Gotchas (READ THIS)
 
-### Authentication
+### 6.1. Authentication — Cookie-based Sessions
+The backend uses `express-session`. The Android app auto-persists cookies via `JavaNetCookieJar`:
 
+```kotlin
+// ApiClient.kt
+val cookieManager = CookieManager().apply { setCookiePolicy(CookiePolicy.ACCEPT_ALL) }
+val client = OkHttpClient.Builder()
+    .cookieJar(JavaNetCookieJar(cookieManager))
+    .addInterceptor(AuthInterceptor())  // 401 handler
+    .addInterceptor(logging)
+    .build()
+```
+
+**There are NO JWT tokens.** Session is a server-side cookie (`connect.sid`).
+
+### 6.2. 401 Session Expiry Flow
+`ApiClient.AuthInterceptor` intercepts every HTTP response. On 401:
+1. Clears cookies from `CookieManager`
+2. Clears `SessionManager`
+3. Sends `LocalBroadcast` with action `ACTION_SESSION_EXPIRED`
+4. `MainActivity` has a `BroadcastReceiver` that navigates to login
+
+### 6.3. SafeApiCall — Shared Error Handling
+All repositories use the shared `safeApiCall<T>` from `SafeApiCall.kt`:
+
+```kotlin
+suspend fun login(email: String, password: String): Result<LoginResponse> =
+    safeApiCall { api.login(LoginRequest(email, password)) }
+```
+
+**DO NOT** create private `safeCall` duplicates in repositories.
+
+### 6.4. MapViewComposable — Encoded Polyline (CRITICAL)
+`MapViewComposable` accepts `routePolyline: String?` — the **encoded** polyline string. It decodes internally via `LocationHelper.decodePolyline()`.
+
+Uses **GeoJSON sources** + `CircleLayer` / `LineLayer`. A `layersAdded` flag prevents duplicate layer crashes during recomposition.
+
+**DO NOT:**
+- Pass `List<Pair<Double,Double>>` — the param is `String?`
+- Use `SymbolManager` / `LineManager` — they're deprecated in MapLibre 11.x
+- Import `BitmapUtils`, `SymbolManager`, `SymbolOptions` — they don't exist
+
+### 6.5. CostSharingCard Param Name
+```kotlin
+// CORRECT:
+CostSharingCard(costData = costResponse)
+// WRONG (won't compile):
+CostSharingCard(costSharing = costResponse)
+```
+
+### 6.6. ViewModel Initialization Guard
+`DriverViewModel` and `PassengerViewModel` both use `private var initialized = false` to prevent `LaunchedEffect(Unit)` from creating duplicate trips/requests on recomposition. Reset by `retry()`.
+
+### 6.7. Profile Photo — Base64 Storage
+Profile photos are stored as base64-encoded JPEG strings in the `profile_photo_url` column. `ProfileViewModel.uploadPhoto()` decodes the picked image, scales to max 512px, compresses to JPEG 80%, and sends as `data:image/jpeg;base64,...` to `POST /api/profile/photo`.
+
+The `ProfileScreen` and `EditProfileScreen` decode with `BitmapFactory.decodeByteArray()` and display via `Image(bitmap.asImageBitmap())`.
+
+### 6.8. Phone Verification — OTP Flow
+1. User enters phone → `POST /api/profile/verify-phone/send` → generates 6-digit OTP (logged to console in dev; returned in `dev_otp` field when `NODE_ENV !== 'production'`)
+2. User enters OTP → `POST /api/profile/verify-phone/confirm` → sets `is_phone_verified = 1`
+3. In-memory `phoneOtpStore` keyed by `userId`, expires after 5 minutes
+
+### 6.9. Socket.IO Events
+```
+Client → Server: "driver-join-trip"              { tripId }
+Client → Server: "passenger-selected-driver"     { tripId, matchId, ... }
+Server → Client: "new-ride-request"              { match data }
+Server → Client: "ride-accepted"                 { acceptance data }
+```
+
+---
+
+## 7. Backend API Endpoints — Complete Reference
+
+### Auth
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/signup` | Register new user (sends OTP) |
+| POST | `/api/signup` | Register user (sends email OTP via Resend) |
 | POST | `/api/verify-otp` | Verify email OTP |
-| POST | `/api/login` | User login |
-| POST | `/api/logout` | User logout |
-| GET | `/api/auth/status` | Check authentication status |
+| POST | `/api/login` | Login (creates session, returns `{user: {id, name, email}}`) |
+| POST | `/api/logout` | Destroy session + clear cookie |
+| GET | `/api/auth/status` | Returns `{isAuthenticated, user}` |
+| GET | `/api/config` | Returns `{olaMapsApiKey}` |
 
-### Driver Endpoints
-
+### Profile (all require auth)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/trips` | Create a new trip |
-| GET | `/api/trips/active` | Get driver's active trip |
-| GET | `/api/trips/:id` | Get specific trip details |
-| GET | `/api/trips/:id/route-segment` | Get privacy-safe route segment |
-| GET | `/api/trips/:id/requests` | Get passenger requests for trip |
-| PUT | `/api/trips/:id/cancel` | Cancel a trip |
+| GET | `/api/profile` | Full user profile with all fields |
+| PUT | `/api/profile` | Update profile fields (name, phone, gender, dob, vehicle, bio, etc.) |
+| POST | `/api/profile/photo` | Upload base64 profile photo (max 5MB) |
+| DELETE | `/api/profile/photo` | Remove profile photo |
+| POST | `/api/profile/verify-phone/send` | Send phone OTP |
+| POST | `/api/profile/verify-phone/confirm` | Confirm phone OTP |
+| GET | `/api/profile/completion` | Profile completion stats (filled/total/percentage/fields) |
 
-### Passenger Endpoints
+### Maps (proxy to Ola Maps API)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/maps/autocomplete?q=` | Location autocomplete |
+| GET | `/api/maps/geocode?query=` | Forward geocode |
+| GET | `/api/maps/reverse-geocode?lat=&lng=` | Reverse geocode |
+| GET | `/api/maps/directions?origin=&destination=` | Route directions |
 
+### Trips (driver)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/trips` | Create trip |
+| GET | `/api/trips/active` | Driver's active trip |
+| GET | `/api/trips/my-rides` | All rides as driver + passenger |
+| GET | `/api/trips/:id` | Trip details |
+| GET | `/api/trips/:id/requests` | Passenger requests for trip |
+| GET | `/api/trips/:id/route-segment` | Privacy-safe route segment |
+| PUT | `/api/trips/:id/cancel` | Cancel trip |
+
+### Ride Requests (passenger)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/ride-requests` | Create ride request |
-| GET | `/api/available-drivers` | Search for matching drivers |
+| GET | `/api/available-drivers?pickup_lat=...` | Find matching drivers |
 
-### Matching Endpoints
-
+### Matches
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/matches` | Create driver-passenger match |
-| PUT | `/api/matches/:id/status` | Accept/reject match |
+| POST | `/api/matches` | Create match |
+| PUT | `/api/matches/:id/status` | Accept/reject (body: `{status}`) |
+| GET | `/api/matches/active` | Active matches |
+
+### Cost Sharing
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/cost-sharing/calculate` | Calculate fare |
+| GET | `/api/cost-sharing/fuel-prices` | Fuel prices by vehicle/fuel type |
 
 ---
 
-## 🌐 Frontend Pages
+## 8. Database Schema (SQLite)
 
-### 1. `index.html` - Main Landing Page
-- Hero section with search form
-- Pickup/Dropoff location inputs with Ola-backed autocomplete
-- DateTime picker for scheduling
-- "Heading to" (Driver) and "Be Passenger" action buttons
-- User menu dropdown when logged in
-- Navigation links (Ride, Drive, Business, About)
+### users
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | Auto-increment |
+| name | TEXT | NOT NULL |
+| email | TEXT | NOT NULL, UNIQUE |
+| password | TEXT | bcrypt hash |
+| phone | TEXT | Nullable |
+| is_phone_verified | INTEGER | 0 or 1 |
+| gender | TEXT | male/female/other/prefer_not_to_say |
+| date_of_birth | TEXT | YYYY-MM-DD |
+| vehicle_number | TEXT | Indian format (e.g. GJ01AB1234) |
+| vehicle_model | TEXT | e.g. "Maruti Swift" |
+| profile_photo_url | TEXT | base64 data URI |
+| bio | TEXT | Free text |
+| home_address | TEXT | Saved place |
+| work_address | TEXT | Saved place |
+| emergency_contact | TEXT | Phone number |
+| preferred_role | TEXT | "both" (default), "driver", "rider" |
 
-### 2. `login.html` - Login Page
-- Email and password inputs
-- Form validation
-- Redirect to index.html on success
-- Toast notifications for success/error
+### trips
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | Auto-increment |
+| driver_id | INTEGER FK→users | |
+| start_location, end_location | TEXT | Address strings |
+| start_lat, start_lng, end_lat, end_lng | REAL | Coordinates |
+| route_polyline | TEXT | Encoded polyline |
+| distance_km | REAL | |
+| duration_minutes | INTEGER | |
+| departure_time | DATETIME | |
+| available_seats | INTEGER | Default 1 |
+| status | TEXT | active / completed / cancelled |
+| created_at, updated_at | DATETIME | |
 
-### 3. `signup.html` - Registration Page
-- Name, email, password inputs
-- OTP verification section (hidden initially)
-- Email verification via Resend API
-- Redirect to login.html after verification
+### ride_requests
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | |
+| passenger_id | INTEGER FK→users | |
+| pickup_location, dropoff_location | TEXT | |
+| pickup_lat, pickup_lng, dropoff_lat, dropoff_lng | REAL | |
+| requested_time | DATETIME | |
+| status | TEXT | searching / matched / completed / cancelled |
 
-### 4. `driver-confirmation.html` - Driver Dashboard
-- Shows active trip details
-- Displays route on Google Map
-- Lists incoming passenger requests
-- Accept/Decline request buttons
-- Privacy notice about route sharing
-- Real-time notification popup for new requests
+### matches
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | |
+| trip_id | INTEGER FK→trips | UNIQUE with ride_request_id |
+| ride_request_id | INTEGER FK→ride_requests | |
+| pickup_point_lat/lng, dropoff_point_lat/lng | REAL | Actual pickup/drop on route |
+| fare_amount | DECIMAL | |
+| status | TEXT | pending / accepted / rejected / completed |
 
-### 5. `passenger-confirmation.html` - Driver Selection
-- Lists available drivers matching route
-- Shows driver info, rating, vehicle details
-- Displays fare and ETA estimates
-- Route preview on map
-- Partial ride indicators
-- Select driver functionality
+### fuel_config
+| Column | Type | Notes |
+|--------|------|-------|
+| vehicle_type | TEXT | "2W" or "4W" |
+| fuel_type | TEXT | "petrol", "diesel", "cng", "electric" |
+| cost_per_km | REAL | |
 
 ---
 
-## ⚡ Real-Time Features
+## 9. Color Theme (Color.kt)
 
-### WebSocket Events (Socket.io)
+| Name | Hex | Role |
+|------|-----|------|
+| Primary | `#1A1A2E` | Deep navy — top bars, primary buttons, headers |
+| PrimaryVariant | `#16213E` | Gradient partner for Primary |
+| Secondary | `#00B4D8` | Cyan — accent buttons, icons, links, FABs |
+| SecondaryVariant | `#0096C7` | Darker cyan |
+| Accent | `#4CC9F0` | Lighter cyan — highlights |
+| SurfaceLight | `#F8F9FA` | Light background |
+| CardLight | `#FFFFFF` | Card backgrounds |
+| TextPrimary | `#1A1A2E` | Body text |
+| TextSecondary | `#6C757D` | Subtle text, labels |
+| TextOnPrimary | `#FFFFFF` | White text on dark |
+| Success | `#2ECC71` | Green — verified badges, confirmations |
+| Warning | `#F39C12` | Orange — stars, warnings |
+| Error | `#E74C3C` | Red — destructive actions, errors |
+| Info | `#3498DB` | Blue — informational |
+| DividerColor | `#E0E0E0` | Divider lines |
+| RiderColor | `#00B4D8` | Rider toggle |
+| DriverColor | `#2ECC71` | Driver toggle |
 
-```javascript
-// Server-side events
-io.on('connection', (socket) => {
-    // Driver joins their trip room
-    socket.on('driver-join-trip', (data) => { ... });
-    
-    // Passenger notifies driver of selection
-    socket.on('passenger-selected-driver', (data) => { ... });
-    
-    // Handle disconnections
-    socket.on('disconnect', () => { ... });
-});
+---
+
+## 10. Key Data Models (Models.kt)
+
+### Profile (new)
+```kotlin
+data class UserProfile(
+    val id: Int, val name: String, val email: String,
+    val phone: String?, val isPhoneVerified: Int,
+    val gender: String?, val dateOfBirth: String?,
+    val vehicleNumber: String?, val vehicleModel: String?,
+    val profilePhotoUrl: String?, val bio: String?,
+    val homeAddress: String?, val workAddress: String?,
+    val emergencyContact: String?, val preferredRole: String?
+)
+
+data class UpdateProfileRequest(
+    val name: String?, val phone: String?, val gender: String?,
+    val dateOfBirth: String?, val vehicleNumber: String?,
+    val vehicleModel: String?, val bio: String?,
+    val emergencyContact: String?, val homeAddress: String?,
+    val workAddress: String?, val preferredRole: String?
+)
 ```
 
-### GlobalNotificationManager Class
-
-Located in `global-notifications.js`, this class handles:
-
-| Method | Purpose |
-|--------|---------|
-| `init()` | Initialize notification system |
-| `checkDriverStatus()` | Check if user has active trip |
-| `initializeWebSocket()` | Setup Socket.io connection |
-| `joinTripRoom()` | Join room as driver |
-| `handleInstantNotification()` | Process incoming notifications |
-| `showInstantPopup()` | Display notification popup |
-| `acceptRequest()` | Accept passenger request |
-| `declineRequest()` | Decline passenger request |
-| `playNotificationSound()` | Audio notification |
-| `showToast()` | Display toast messages |
+### Other key models
+- `TripData` — has `routePolyline: String?` (encoded), `driverName`, `availableSeats`
+- `AvailableDriver` — returned by `/api/available-drivers`, used in `DriverCard`
+- `MatchData` — uses `@SerializedName(alternate=[...])` for flexible parsing
+- `CostSharingResponse` — `baseTripCost`, `costPerPassenger`, `driverSaved`, `co2SavedKg`
+- `MyRide` — `userRole` field distinguishes "driver" vs "passenger" rides
 
 ---
 
-## 🔐 Authentication System
+## 11. SessionManager (util/SessionManager.kt)
 
-### Flow
+SharedPreferences-based, NOT DataStore (despite DataStore in dependencies — it's only imported, SessionManager uses SharedPreferences directly).
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Frontend
-    participant Server
-    participant Email
-    
-    User->>Frontend: Enter signup details
-    Frontend->>Server: POST /api/signup
-    Server->>Email: Send OTP via Resend
-    Email->>User: Receive OTP email
-    User->>Frontend: Enter OTP
-    Frontend->>Server: POST /api/verify-otp
-    Server->>Frontend: User verified
-    Frontend->>User: Redirect to login
-    
-    User->>Frontend: Enter login details
-    Frontend->>Server: POST /api/login
-    Server->>Server: Verify bcrypt hash
-    Server->>Frontend: Session created
-    Frontend->>User: Authenticated
-```
-
-### Session Configuration
-
-```javascript
-app.use(session({
-    secret: 'your-secret-key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: false,
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
-}));
-```
-
----
-
-## 🧮 Core Algorithms
-
-### Route Matching
-
-The application uses sophisticated algorithms for matching:
-
-1. **Haversine Distance Calculation**
-   - Calculates distance between two GPS coordinates
-   - Used to find closest points on driver's route
-
-2. **Polyline Decoding**
-    - Decodes encoded route polyline (Ola-compatible)
-   - Converts to array of lat/lng points
-
-3. **Route Matching Threshold**
-   - Dynamic threshold based on trip distance
-   - Short trips (< 10km): 400m threshold
-   - Medium trips (10-20km): 850m threshold
-   - Long trips (> 50km): up to 3650m threshold
-
-4. **Partial Ride Detection**
-   - If passenger destination is not on route
-   - Finds closest point for drop-off
-   - Calculates remaining distance to destination
-
-### Fare Calculation
-
-```javascript
-// Base rate: ₹5 per km (driver rate)
-// Platform fee: 14%
-// Minimum fare: ₹20
-
-const baseRate = 5; // per km
-const platformFee = 0.14;
-const fareBeforeFee = distance_km * baseRate;
-const totalFare = fareBeforeFee / (1 - platformFee);
-const driverEarnings = totalFare * 0.86;
+```kotlin
+// Keys: is_logged_in, user_id, user_name, user_email
+// Methods: saveUser(id, name, email), clear()
+// Properties: isLoggedIn, userId, userName, userEmail (all get/set)
 ```
 
 ---
 
-## 📝 Changelog
+## 12. Build Configuration
 
-### Version 1.2.0 (UI/UX Improvements - February 1, 2026)
-
-> **Focus:** Mobile responsiveness, scrolling fixes, location autocomplete, and professional polish
-
-| Type | Description |
-|------|-------------|
-| 🐛 | **Fixed Scrolling Issues** - Removed CSS rules blocking page scroll (`-webkit-touch-callout: none`, `overscroll-behavior`) |
-| 🐛 | **Fixed Z-Index Layering** - Suggestions dropdown now appears above other input fields using `:focus-within` |
-| 🐛 | **Disabled Browser Autocomplete** - Added `autocomplete="off"`, `autocorrect="off"`, `spellcheck="false"` to prevent browser suggestions |
-| ✨ | **Local Ahmedabad Autocomplete** - Added 80+ Ahmedabad locations (areas, malls, colleges, hospitals, landmarks) |
-| 🔧 | **Migrated map provider** - Removed legacy provider hooks and standardized on Ola Maps |
-| 🐛 | **Fixed Mobile Profile Dropdown** - Dropdown now appears under profile button (not bottom sheet) with smooth animation |
-| 🎨 | **Improved Dropdown Styling** - Professional design with z-index: 100000, fade/scale animation, red logout button |
-| 🐛 | **Fixed Active Trip Prompt** - Added `pointer-events: none` when hidden, repositioned above mobile nav |
-| 🔧 | **Fixed Datetime Picker** - Increased z-index to 99999 for proper visibility |
-
-#### Files Modified
-
-| File | Changes |
-|------|---------|
-| `pwa-mobile.css` | Added `!important` scroll rules, removed touch-callout blocking |
-| `mobile-responsive.css` | Fixed mobile dropdown positioning and animation |
-| `style.css` | Added `:focus-within` z-index management, suggestions list styling |
-| `index.html` | Added autocomplete blocking attributes, fixed active-trip-prompt, and standardized map provider flow |
-| `location-autocomplete.js` | Complete rewrite with 80+ Ahmedabad locations, smart matching, professional styling |
-
-#### Local Autocomplete Locations Include
-
+### gradle.properties
+```properties
+RIDEMATE_BASE_URL=http://10.0.2.2:3000    # emulator default
+OLA_MAPS_API_KEY=your_key_here
 ```
-📍 Major Areas: Satellite, Vastrapur, Prahladnagar, CG Road, SG Highway, Bopal, Thaltej, Bodakdev...
-📍 Transport: Ahmedabad Airport, Kalupur Railway Station, GSRTC Bus Stand, Metro Stations...
-📍 Education: IIM Ahmedabad, NID, CEPT, Gujarat University, Nirma University, DAIICT...
-📍 Malls: Ahmedabad One, Alpha One, Iscon Mega Mall, Himalaya Mall...
-📍 Hospitals: Civil Hospital, Zydus, Sterling, CIMS, Apollo...
-📍 Landmarks: Science City, Sabarmati Ashram, Riverfront, GIFT City, Akshardham...
-```
+
+### BuildConfig fields (generated)
+- `BuildConfig.BASE_URL` — read by `Constants.BASE_URL`
+- `BuildConfig.OLA_MAPS_API_KEY` — read by `Constants.OLA_API_KEY`
+- `BuildConfig.VERSION_NAME` — displayed in ProfileScreen
+
+### Release build guards
+- `RIDEMATE_BASE_URL` must be `https://` (non-placeholder)
+- `OLA_MAPS_API_KEY` must be non-blank
 
 ---
 
-### Version 1.1.0 (PWA Conversion - January 28, 2026)
+## 13. Build & Run
 
-| Type | Description |
-|------|-------------|
-| ✨ | **Converted to Progressive Web App (PWA)** - App can now be installed on Android devices |
-| 📄 | Added `manifest.json` - PWA metadata with app name, icons, colors, display settings |
-| 📄 | Added `service-worker.js` - Offline caching for all static assets and API responses |
-| 📄 | Added `pwa-mobile.css` - Mobile-optimized styles with touch improvements |
-| 📁 | Added `/icons` folder - App icons in multiple sizes (72x72 to 512x512) |
-| 🔧 | Updated all HTML files with PWA meta tags and service worker registration |
-| 📱 | Added mobile viewport settings (`maximum-scale=1.0, user-scalable=no`) |
-| 🎨 | Added theme-color meta tag for browser chrome customization |
-| 🔔 | Added PWA install prompt handling in JavaScript |
-
-#### New File Structure
-```
-RideMate-main/
-├── manifest.json          # NEW - PWA manifest
-├── service-worker.js      # NEW - Offline caching
-├── pwa-mobile.css         # NEW - Mobile styles
-└── icons/                 # NEW - App icons
-    ├── icon-72x72.png
-    ├── icon-96x96.png
-    ├── icon-128x128.png
-    ├── icon-144x144.png
-    ├── icon-152x152.png
-    ├── icon-192x192.png
-    ├── icon-384x384.png
-    └── icon-512x512.png
-```
-
-### Version 1.0.0 (Initial Review - January 28, 2026)
-
-| Type | Description |
-|------|-------------|
-| 📖 | Initial documentation created |
-| 🔍 | Complete codebase review performed |
-
----
-
-## 🔧 Development Notes
-
-### Running the Application
-
+### Backend
 ```bash
-# Install dependencies
+cd ridemate-backend
 npm install
-
-# Start the server
-node server.js
-
-# Server runs on http://localhost:3000
+node server.js       # → http://localhost:3000
 ```
 
-### Environment Configuration
-
-> **⚠️ Security Note:** The Resend API key is currently hardcoded in `server.js`. This should be moved to environment variables for production.
-
-```javascript
-// Current (insecure)
-const resend = new Resend('re_YKiaFw7e_LXUhzgyNhgdUGBsCbaPkqsW1');
-
-// Recommended
-const resend = new Resend(process.env.RESEND_API_KEY);
-```
-
-### Ola Maps API
-
-The application uses Ola Maps APIs for:
-- Autocomplete suggestions
-- Geocoding and reverse geocoding
-- Route calculation (with distance matrix fallback)
-- Map display
-
-> **Note:** Configure `OLA_MAPS_API_KEY` in environment variables.
+### Android App
+1. Set API key in `~/.gradle/gradle.properties`:
+   ```
+   OLA_MAPS_API_KEY=your_key_here
+   ```
+2. Open `ridemate-backend/RideMate-mobile/` in Android Studio
+3. Run on emulator API 26+. Backend auto-configured at `10.0.2.2:3000`.
+4. For physical device: add `RIDEMATE_BASE_URL=http://YOUR_PC_IP:3000` to `gradle.properties`.
 
 ---
 
-## 📊 File Size Summary
+## 14. Known Limitations / TODOs
 
-| File | Lines | Size |
-|------|-------|------|
-| server.js | 1,139 | 45.7 KB |
-| index.html | 1,257 | 53.6 KB |
-| driver-confirmation.html | 1,613 | 66.7 KB |
-| passenger-confirmation.html | 2,021 | 81.9 KB |
-| style.css | - | 39.4 KB |
-| global-notifications.js | 532 | 21.1 KB |
-| auth.js | 123 | 4.2 KB |
-| database-schema.sql | 69 | 3.0 KB |
-
----
-
-*This document will be updated with each significant change to the codebase.*
+- No push notifications (FCM) — only in-app Socket.IO
+- No trip completion flow (driver marking ride as "done")
+- No payment integration
+- No dark mode toggle (theme supports it, no user switch)
+- Resend API key hardcoded — should use env var
+- `express-session` secret hardcoded — should use env var
+- No rate limiting on API endpoints
+- Profile photos stored as base64 in SQLite — should use file storage / S3 for production
+- Phone OTP logged to console (no real SMS gateway like Twilio)
+- No image compression on server side
+- Rating system is cosmetic (always shows 5.0)

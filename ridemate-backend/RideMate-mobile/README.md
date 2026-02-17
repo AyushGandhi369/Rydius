@@ -136,12 +136,15 @@ app/src/main/java/com/rydius/mobile/
 - JDK 17+
 - Node.js backend running (see `ridemate-backend/`)
 
-### Configure Backend URL
-In `app/build.gradle.kts`, the `BASE_URL` is set to `http://10.0.2.2:3000` (Android emulator localhost). For physical device testing, change to your machine's LAN IP:
+### Configure Backend URL and Maps Key
+Set values in `local.properties` (recommended) or environment variables:
 
-```kotlin
-buildConfigField("String", "BASE_URL", "\"http://192.168.x.x:3000\"")
+```properties
+RIDEMATE_BASE_URL=http://10.0.2.2:3000
+OLA_MAPS_API_KEY=your_ola_maps_api_key_here
 ```
+
+For physical device testing, use your machine LAN IP in `RIDEMATE_BASE_URL`.
 
 ### Build & Run
 ```bash
@@ -179,12 +182,12 @@ node server.js
 
 All API calls go through the Node.js backend at `BASE_URL`:
 
-- **Auth**: `POST /auth/signup`, `POST /auth/verify-otp`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/status`
+- **Auth**: `POST /api/signup`, `POST /api/verify-otp`, `POST /api/login`, `POST /api/logout`, `GET /api/auth/status`, `GET /api/config`
 - **Maps**: `GET /api/maps/autocomplete`, `GET /api/maps/geocode`, `GET /api/maps/reverse-geocode`, `GET /api/maps/directions`
-- **Trips**: `POST /api/trips`, `GET /api/trips/active`, `GET /api/trips/:id`, `POST /api/trips/:id/requests`, `DELETE /api/trips/:id`
-- **Ride Requests**: `POST /api/ride-requests`, `GET /api/ride-requests/:id/available-drivers`
+- **Trips**: `POST /api/trips`, `GET /api/trips/my-rides`, `GET /api/trips/active`, `GET /api/trips/:id`, `GET /api/trips/:id/requests`, `PUT /api/trips/:id/cancel`
+- **Ride Requests**: `POST /api/ride-requests`, `GET /api/available-drivers`
 - **Matches**: `POST /api/matches`, `PUT /api/matches/:id/status`, `GET /api/matches/active`
-- **Cost**: `POST /api/cost-sharing/calculate`, `GET /api/fuel-prices`
+- **Cost**: `POST /api/cost-sharing/calculate`, `GET /api/cost-sharing/fuel-prices`
 
 ---
 

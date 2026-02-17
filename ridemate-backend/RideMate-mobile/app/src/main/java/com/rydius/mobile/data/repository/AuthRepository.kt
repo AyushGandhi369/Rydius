@@ -8,32 +8,42 @@ class AuthRepository {
     private val api = ApiClient.api
 
     suspend fun signup(name: String, email: String, password: String): Result<ApiResponse> =
-        safeCall { api.signup(SignupRequest(name, email, password)) }
+        safeApiCall { api.signup(SignupRequest(name, email, password)) }
 
     suspend fun verifyOtp(email: String, otp: String): Result<ApiResponse> =
-        safeCall { api.verifyOtp(VerifyOtpRequest(email, otp)) }
+        safeApiCall { api.verifyOtp(VerifyOtpRequest(email, otp)) }
 
     suspend fun login(email: String, password: String): Result<LoginResponse> =
-        safeCall { api.login(LoginRequest(email, password)) }
+        safeApiCall { api.login(LoginRequest(email, password)) }
 
     suspend fun logout(): Result<ApiResponse> =
-        safeCall { api.logout() }
+        safeApiCall { api.logout() }
 
     suspend fun checkAuthStatus(): Result<AuthStatusResponse> =
-        safeCall { api.authStatus() }
+        safeApiCall { api.authStatus() }
 
     suspend fun getConfig(): Result<ConfigResponse> =
-        safeCall { api.getConfig() }
-}
+        safeApiCall { api.getConfig() }
 
-private suspend fun <T> safeCall(block: suspend () -> retrofit2.Response<T>): Result<T> =
-    try {
-        val response = block()
-        if (response.isSuccessful && response.body() != null) {
-            Result.success(response.body()!!)
-        } else {
-            Result.failure(Exception(response.errorBody()?.string() ?: "Unknown error"))
-        }
-    } catch (e: Exception) {
-        Result.failure(e)
-    }
+    // ── Profile ─────────────────────────────────────────────────
+    suspend fun getProfile(): Result<ProfileResponse> =
+        safeApiCall { api.getProfile() }
+
+    suspend fun updateProfile(request: UpdateProfileRequest): Result<ApiResponse> =
+        safeApiCall { api.updateProfile(request) }
+
+    suspend fun uploadProfilePhoto(base64Photo: String): Result<UploadPhotoResponse> =
+        safeApiCall { api.uploadProfilePhoto(UploadPhotoRequest(base64Photo)) }
+
+    suspend fun deleteProfilePhoto(): Result<ApiResponse> =
+        safeApiCall { api.deleteProfilePhoto() }
+
+    suspend fun sendPhoneOtp(phone: String): Result<PhoneOtpResponse> =
+        safeApiCall { api.sendPhoneOtp(SendPhoneOtpRequest(phone)) }
+
+    suspend fun verifyPhoneOtp(otp: String): Result<ApiResponse> =
+        safeApiCall { api.verifyPhoneOtp(VerifyPhoneOtpRequest(otp)) }
+
+    suspend fun getProfileCompletion(): Result<ProfileCompletionResponse> =
+        safeApiCall { api.getProfileCompletion() }
+}
