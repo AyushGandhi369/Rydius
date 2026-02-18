@@ -43,6 +43,7 @@ yarn-debug.log*
 yarn-error.log*
 server-run.log
 server-run.err.log
+tmpclaude-*-cwd
 
 # Build output
 dist/
