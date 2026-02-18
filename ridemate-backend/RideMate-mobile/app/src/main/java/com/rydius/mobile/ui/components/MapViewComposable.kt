@@ -6,15 +6,41 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.rydius.mobile.util.Constants
 import com.rydius.mobile.util.LocationHelper
+import okhttp3.OkHttpClient
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.module.http.HttpRequestUtil
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
+
+/** Ensures the OkHttp interceptor for Ola Maps API key injection is set up exactly once. */
+private var olaHttpClientConfigured = false
+
+private fun configureOlaHttpClient(context: android.content.Context, apiKey: String) {
+    if (olaHttpClientConfigured) return
+    // MapLibre MUST be initialised before touching HttpRequestUtil
+    MapLibre.getInstance(context)
+    olaHttpClientConfigured = true
+    val client = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val original = chain.request()
+            val url = original.url.toString()
+            if (url.contains("api.olamaps.io") && !url.contains("api_key")) {
+                val separator = if (url.contains("?")) "&" else "?"
+                val newUrl = "${url}${separator}api_key=$apiKey"
+                chain.proceed(original.newBuilder().url(newUrl).build())
+            } else {
+                chain.proceed(original)
+            }
+        }
+        .build()
+    HttpRequestUtil.setOkHttpClient(client)
+}
 
 /**
  * MapLibre map composable that renders Ola Maps tiles with route polyline and markers.
@@ -47,13 +73,19 @@ fun MapViewComposable(
         }
     }
 
+    // Configure OkHttp interceptor so ALL MapLibre requests to api.olamaps.io include the api_key.
+    // This also initialises MapLibre internally, so it must run before creating MapView.
+    if (hasValidOlaKey) {
+        configureOlaHttpClient(context, olaMapsApiKey)
+    }
+
     // Decode the polyline once and remember the result
     val decodedPoints = remember(routePolyline) {
         routePolyline?.let { LocationHelper.decodePolyline(it) } ?: emptyList()
     }
 
     val mapView = remember {
-        MapLibre.getInstance(context)
+        if (!hasValidOlaKey) MapLibre.getInstance(context)   // fallback path still needs init
         MapView(context).apply { onCreate(null) }
     }
 
@@ -133,14 +165,14 @@ fun MapViewComposable(
                     addCircleMarker(style, "end", endLat, endLng, "#EF4444")
                 }
 
-                // Try primary style, with timeout fallback if it fails to load
+                // Load style — interceptor ensures api_key is on all sub-requests
                 var styleLoaded = false
                 map.setStyle(styleUrl) { style ->
                     styleLoaded = true
                     renderStyle(style)
                 }
 
-                // If using Ola Maps style (not already the fallback), schedule a fallback after 4s
+                // Safety-net: if the Ola style hasn't loaded after 6s, fall back to free tiles
                 if (styleUrl != Constants.FALLBACK_STYLE_URL) {
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                         if (!styleLoaded) {
@@ -148,7 +180,7 @@ fun MapViewComposable(
                                 renderStyle(style)
                             }
                         }
-                    }, 4000)
+                    }, 6000)
                 }
             }
         }
