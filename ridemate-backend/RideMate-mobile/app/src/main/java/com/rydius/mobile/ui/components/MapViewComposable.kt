@@ -22,12 +22,8 @@ import com.rydius.mobile.BuildConfig
 import com.rydius.mobile.util.Constants
 import com.rydius.mobile.util.LocationHelper
 import java.io.IOException
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
@@ -59,25 +55,12 @@ private fun buildOlaOkHttpClient(apiKey: String): OkHttpClient {
         maxRequestsPerHost = 20
     }
 
-    // Trust all certificates for Ola Maps – their chain may not validate on emulators
-    // whose system date has moved past the cert's validity period.
-    val trustAllManager = object : X509TrustManager {
-        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-    }
-    val sslContext = SSLContext.getInstance("TLS").apply {
-        init(null, arrayOf<TrustManager>(trustAllManager), SecureRandom())
-    }
-
     return OkHttpClient.Builder()
         .dispatcher(dispatcher)
-        .sslSocketFactory(sslContext.socketFactory, trustAllManager)
-        .hostnameVerifier { _, _ -> true }
         .addInterceptor { chain ->
             val original = chain.request()
             val url = original.url.toString()
-            if (url.contains("api.olamaps.io") && !url.contains("api_key=")) {
+            if (url.contains("olamaps.io") && !url.contains("api_key=")) {
                 val separator = if (url.contains("?")) "&" else "?"
                 val newUrl = "${url}${separator}api_key=$apiKey"
                 chain.proceed(original.newBuilder().url(newUrl).build())
@@ -163,7 +146,7 @@ fun MapViewComposable(
             !k.contains("your_ola_maps_api_key_here", ignoreCase = true)
     }
 
-    // Configure OkHttp interceptor so ALL MapLibre requests to api.olamaps.io include the api_key.
+    // Configure OkHttp interceptor so ALL MapLibre requests to olamaps.io include the api_key.
     if (hasValidOlaKey) {
         configureOlaHttpClient(olaMapsApiKey)
     }
@@ -197,6 +180,9 @@ fun MapViewComposable(
             cachedOlaStyleJson = patched
             if (BuildConfig.DEBUG) Log.d(TAG, "Ola style JSON loaded (len=${patched.length})")
             OlaStyleState.Loaded(patched)
+        } catch (e: CancellationException) {
+            // Don't treat recomposition cancellation as an error state.
+            throw e
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) Log.w(TAG, "Ola style JSON load failed: ${e.javaClass.simpleName}: ${e.message}")
             OlaStyleState.Error(e.message ?: "Failed to load Ola style")
@@ -233,9 +219,11 @@ fun MapViewComposable(
         }
     }
 
-    val mapStyle: MapStyle = remember(hasValidOlaKey, olaStyleState) {
+    val mapStyle: MapStyle = remember(hasValidOlaKey, olaStyleState, mapLoadError) {
         when {
             !hasValidOlaKey -> MapStyle.Fallback
+            olaStyleState is OlaStyleState.Error -> MapStyle.Fallback
+            mapLoadError != null -> MapStyle.Fallback
             olaStyleState is OlaStyleState.Loaded -> MapStyle.OlaJson((olaStyleState as OlaStyleState.Loaded).json)
             else -> MapStyle.LoadingOla
         }

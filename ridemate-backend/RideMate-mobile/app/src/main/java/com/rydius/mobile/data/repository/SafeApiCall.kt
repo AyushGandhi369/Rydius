@@ -1,6 +1,7 @@
 package com.rydius.mobile.data.repository
 
 import com.google.gson.JsonParser
+import kotlinx.coroutines.CancellationException
 import retrofit2.Response
 
 /**
@@ -26,6 +27,9 @@ suspend fun <T> safeApiCall(block: suspend () -> Response<T>): Result<T> =
             } catch (_: Exception) { null }
             Result.failure(Exception(errorMsg ?: "Request failed (${response.code()})"))
         }
+    } catch (e: CancellationException) {
+        // Never swallow coroutine cancellations; callers rely on structured concurrency.
+        throw e
     } catch (e: Exception) {
         Result.failure(e)
     }

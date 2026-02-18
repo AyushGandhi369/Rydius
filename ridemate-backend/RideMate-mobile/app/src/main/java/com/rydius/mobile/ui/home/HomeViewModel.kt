@@ -17,6 +17,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.io.IOException
 
 class HomeViewModel : ViewModel() {
 
@@ -116,8 +117,26 @@ class HomeViewModel : ViewModel() {
     private fun debounceAutocomplete(query: String, isPickup: Boolean) {
         autocompleteJob?.cancel()
         autocompleteJob = viewModelScope.launch {
+            val q = query.trim()
             delay(250)
-            mapRepo.autocomplete(query, 5).fold(
+
+            // If the user kept typing (or cleared the field) during debounce, ignore stale work.
+            if (isPickup) {
+                if (pickupText.trim() != q) return@launch
+            } else {
+                if (dropoffText.trim() != q) return@launch
+            }
+
+            val result = mapRepo.autocomplete(q, 5)
+
+            // If the query changed while the request was in-flight, drop the response.
+            if (isPickup) {
+                if (pickupText.trim() != q) return@launch
+            } else {
+                if (dropoffText.trim() != q) return@launch
+            }
+
+            result.fold(
                 onSuccess = { predictions ->
                     if (isPickup) {
                         pickupSuggestions = predictions
@@ -128,8 +147,13 @@ class HomeViewModel : ViewModel() {
                     }
                 },
                 onFailure = {
+                    // OkHttp reports cancelled requests as IOException("Canceled"). This is expected
+                    // when the user types quickly; don't show local fallbacks for cancellations.
+                    if (it is IOException && it.message?.contains("Canceled", ignoreCase = true) == true) {
+                        return@launch
+                    }
                     // Fallback to local suggestions
-                    val local = mapRepo.getLocalSuggestions(query, 5)
+                    val local = mapRepo.getLocalSuggestions(q, 5)
                     if (isPickup) {
                         pickupSuggestions = local
                         showPickupSuggestions = local.isNotEmpty()

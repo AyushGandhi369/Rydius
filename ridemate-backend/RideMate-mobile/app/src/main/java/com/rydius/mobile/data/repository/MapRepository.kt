@@ -2,6 +2,7 @@ package com.rydius.mobile.data.repository
 
 import com.rydius.mobile.data.api.ApiClient
 import com.rydius.mobile.data.model.*
+import kotlinx.coroutines.CancellationException
 
 class MapRepository {
 
@@ -15,6 +16,9 @@ class MapRepository {
             } else {
                 Result.failure(Exception("Autocomplete failed"))
             }
+        } catch (e: CancellationException) {
+            // Never swallow coroutine cancellations; ViewModels rely on structured concurrency.
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -27,6 +31,8 @@ class MapRepository {
             } else {
                 Result.failure(Exception("Geocode failed"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -39,6 +45,8 @@ class MapRepository {
             } else {
                 Result.failure(Exception("Reverse geocode failed"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -56,6 +64,8 @@ class MapRepository {
             } else {
                 Result.failure(Exception("Directions failed"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
