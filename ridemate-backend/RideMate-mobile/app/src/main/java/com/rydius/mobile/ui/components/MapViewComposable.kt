@@ -79,17 +79,36 @@ private fun configureOlaHttpClient(apiKey: String) {
 }
 
 private fun patchOlaStyleJson(raw: String): String {
-    // Ola's hosted style currently includes a querystring on the `sprite` base URL
-    // (e.g. ".../sprite?key=0.4.0"). MapLibre native may append ".json"/".png" after the
-    // query, producing invalid URLs and keeping the map stuck on the loading foreground.
-    // Removing the query is safe because we inject auth with `api_key` via OkHttp.
+    // Patch known issues in Ola's hosted style JSON that trip up MapLibre:
+    // 1. Sprite URL has a querystring (e.g. ".../sprite?key=0.4.0"). MapLibre appends
+    //    ".json"/".png" after the full URL, producing invalid paths. Safe to strip
+    //    because we inject auth with `api_key` via OkHttp interceptor.
+    // 2. Some layers define `line-dasharray` with < 2 elements. MapLibre requires at
+    //    least [dash, gap]; fewer causes "line dasharray requires at least two elements"
+    //    and the layer silently fails to render.
     return try {
         val obj = JsonParser.parseString(raw).asJsonObject
+
+        // Fix sprite querystring
         val sprite = obj.get("sprite")?.asString
         if (!sprite.isNullOrBlank()) {
             val cleaned = sprite.substringBefore('?')
             if (cleaned.isNotBlank()) obj.addProperty("sprite", cleaned)
         }
+
+        // Fix malformed line-dasharray entries
+        val layers = obj.getAsJsonArray("layers")
+        if (layers != null) {
+            for (element in layers) {
+                if (!element.isJsonObject) continue
+                val paint = element.asJsonObject.getAsJsonObject("paint") ?: continue
+                val dash = paint.get("line-dasharray")
+                if (dash != null && dash.isJsonArray && dash.asJsonArray.size() < 2) {
+                    paint.remove("line-dasharray")
+                }
+            }
+        }
+
         obj.toString()
     } catch (_: Exception) {
         raw
