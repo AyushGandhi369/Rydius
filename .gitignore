@@ -54,6 +54,7 @@ bin/
 
 # Android specific (Root level catch-all)
 .gradle/
+.kotlin/
 local.properties
 Captures/
 .externalNativeBuild
