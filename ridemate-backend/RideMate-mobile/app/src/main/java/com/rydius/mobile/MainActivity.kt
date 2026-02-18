@@ -82,7 +82,8 @@ class MainActivity : ComponentActivity() {
                                 override fun onReceive(ctx: Context?, intent: Intent?) {
                                     isLoggedIn = false
                                     navController.navigate(Routes.LOGIN) {
-                                        popUpTo(0) { inclusive = true }
+                                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                        launchSingleTop = true
                                     }
                                 }
                             }

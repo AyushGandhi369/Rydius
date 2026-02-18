@@ -15,9 +15,6 @@ out/
 # Gradle
 .gradle/
 /buildsrc/build
-/gradlew
-/gradlew.bat
-/gradle/wrapper/gradle-wrapper.jar
 
 # Android Studio / IntelliJ
 /.idea

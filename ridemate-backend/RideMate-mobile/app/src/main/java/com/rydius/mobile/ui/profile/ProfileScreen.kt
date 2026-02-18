@@ -8,8 +8,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ContactSupport
 import androidx.compose.material.icons.automirrored.filled.HelpCenter
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.StarHalf
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -282,7 +284,7 @@ fun ProfileScreen(
                             Icon(
                                 when {
                                     i < fullStars -> Icons.Default.Star
-                                    i == fullStars && hasHalfStar -> Icons.Default.StarHalf
+                                    i == fullStars && hasHalfStar -> Icons.AutoMirrored.Filled.StarHalf
                                     else -> Icons.Default.StarBorder
                                 },
                                 null,
@@ -504,7 +506,7 @@ fun ProfileScreen(
                     )
                     MenuDivider()
                     ProfileMenuItem(
-                        icon = Icons.Default.ContactSupport,
+                        icon = Icons.AutoMirrored.Filled.ContactSupport,
                         title = "Contact Us",
                         subtitle = "Reach our team",
                         onClick = comingSoon,

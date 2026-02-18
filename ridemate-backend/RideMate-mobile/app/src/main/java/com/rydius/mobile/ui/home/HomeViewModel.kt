@@ -86,6 +86,11 @@ class HomeViewModel : ViewModel() {
 
     fun onPickupTextChange(text: String) {
         pickupText = text
+        // If the user edits the text after selecting a suggestion, coordinates become stale.
+        // Force them to re-select a suggestion so we never route using mismatched lat/lng.
+        pickupLat = 0.0
+        pickupLng = 0.0
+        errorMessage = null
         if (text.length >= 2) {
             debounceAutocomplete(text, isPickup = true)
         } else {
@@ -96,6 +101,10 @@ class HomeViewModel : ViewModel() {
 
     fun onDropoffTextChange(text: String) {
         dropoffText = text
+        // Same stale-coordinate protection as pickup.
+        dropoffLat = 0.0
+        dropoffLng = 0.0
+        errorMessage = null
         if (text.length >= 2) {
             debounceAutocomplete(text, isPickup = false)
         } else {

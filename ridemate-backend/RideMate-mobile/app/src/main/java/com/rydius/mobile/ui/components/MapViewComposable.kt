@@ -33,9 +33,18 @@ fun MapViewComposable(
 ) {
     val context = LocalContext.current
     val olaMapsApiKey = Constants.OLA_API_KEY
+    val hasValidOlaKey = remember(olaMapsApiKey) {
+        val k = olaMapsApiKey.trim()
+        k.isNotBlank() &&
+            !k.contains("your_key_here", ignoreCase = true) &&
+            !k.contains("your_ola_maps_api_key_here", ignoreCase = true)
+    }
     val styleUrl = remember(olaMapsApiKey) {
-        if (olaMapsApiKey.isBlank()) Constants.OLA_STYLE_URL
-        else "${Constants.OLA_STYLE_URL}?api_key=$olaMapsApiKey"
+        if (!hasValidOlaKey) {
+            Constants.FALLBACK_STYLE_URL
+        } else {
+            "${Constants.OLA_STYLE_URL}?api_key=$olaMapsApiKey"
+        }
     }
 
     // Decode the polyline once and remember the result
@@ -72,7 +81,7 @@ fun MapViewComposable(
             lastRenderSignature = renderSignature
 
             view.getMapAsync { map ->
-                map.setStyle(styleUrl) { style ->
+                fun renderStyle(style: org.maplibre.android.maps.Style) {
                     map.uiSettings.isZoomGesturesEnabled = true
                     map.uiSettings.isScrollGesturesEnabled = true
                     map.uiSettings.isRotateGesturesEnabled = false
@@ -122,6 +131,24 @@ fun MapViewComposable(
                     addCircleMarker(style, "start", startLat, startLng, "#22C55E")
                     // End marker (red)
                     addCircleMarker(style, "end", endLat, endLng, "#EF4444")
+                }
+
+                // Try primary style, with timeout fallback if it fails to load
+                var styleLoaded = false
+                map.setStyle(styleUrl) { style ->
+                    styleLoaded = true
+                    renderStyle(style)
+                }
+
+                // If using Ola Maps style (not already the fallback), schedule a fallback after 4s
+                if (styleUrl != Constants.FALLBACK_STYLE_URL) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        if (!styleLoaded) {
+                            map.setStyle(Constants.FALLBACK_STYLE_URL) { style ->
+                                renderStyle(style)
+                            }
+                        }
+                    }, 4000)
                 }
             }
         }

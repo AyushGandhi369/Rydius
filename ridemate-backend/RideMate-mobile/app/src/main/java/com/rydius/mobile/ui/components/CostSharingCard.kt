@@ -3,6 +3,7 @@ package com.rydius.mobile.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -91,7 +92,7 @@ fun CostSharingCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.TrendingDown,
+                            Icons.AutoMirrored.Filled.TrendingDown,
                             contentDescription = null,
                             tint = Success,
                             modifier = Modifier.size(18.dp)

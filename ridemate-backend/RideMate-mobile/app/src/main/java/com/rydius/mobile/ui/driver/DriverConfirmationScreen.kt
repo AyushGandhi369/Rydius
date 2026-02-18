@@ -1,6 +1,7 @@
 package com.rydius.mobile.ui.driver
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,6 +46,15 @@ fun DriverConfirmationScreen(
     LaunchedEffect(Unit) {
         vm.initialize(startLocation, endLocation, startLat, startLng, endLat, endLng, seats, departureTime)
     }
+
+    // Use VM state for rendering so a resumed active trip always shows the real trip details.
+    val uiStartLocation = vm.tripStartLocation.ifBlank { startLocation }
+    val uiEndLocation = vm.tripEndLocation.ifBlank { endLocation }
+    val uiStartLat = vm.tripStartLat.takeIf { it != 0.0 } ?: startLat
+    val uiStartLng = vm.tripStartLng.takeIf { it != 0.0 } ?: startLng
+    val uiEndLat = vm.tripEndLat.takeIf { it != 0.0 } ?: endLat
+    val uiEndLng = vm.tripEndLng.takeIf { it != 0.0 } ?: endLng
+    val uiSeats = vm.tripAvailableSeats.takeIf { it > 0 } ?: seats
 
     var showCancelDialog by remember { mutableStateOf(false) }
     var showCompleteDialog by remember { mutableStateOf(false) }
@@ -97,18 +108,50 @@ fun DriverConfirmationScreen(
                     containerColor = Primary,
                     titleContentColor = TextOnPrimary,
                     navigationIconContentColor = TextOnPrimary
-                ),
-                actions = {
-                    if (vm.tripId != null) {
-                        TextButton(onClick = { showCompleteDialog = true }) {
-                            Text("Complete", color = Success)
+                )
+            )
+        },
+        bottomBar = {
+            if (vm.tripId != null) {
+                Surface(
+                    shadowElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .navigationBarsPadding(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showCancelDialog = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Error),
+                            border = BorderStroke(1.5.dp, Error)
+                        ) {
+                            Icon(Icons.Default.Cancel, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
                         }
-                        TextButton(onClick = { showCancelDialog = true }) {
-                            Text("Cancel", color = Error)
+                        Button(
+                            onClick = { showCompleteDialog = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Success)
+                        ) {
+                            Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Complete", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
-            )
+            }
         }
     ) { padding ->
         if (vm.isLoading) {
@@ -159,14 +202,15 @@ fun DriverConfirmationScreen(
             // Map
             item {
                 MapViewComposable(
-                    startLat = startLat,
-                    startLng = startLng,
-                    endLat = endLat,
-                    endLng = endLng,
+                    startLat = uiStartLat,
+                    startLng = uiStartLng,
+                    endLat = uiEndLat,
+                    endLng = uiEndLng,
                     routePolyline = vm.routePolyline,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp)
+                        .height(260.dp)
+                        .clip(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
                 )
             }
 
@@ -175,35 +219,54 @@ fun DriverConfirmationScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp)
+                        .offset(y = (-12).dp),
                     shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(4.dp)
+                    elevation = CardDefaults.cardElevation(6.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        // From → To
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.TripOrigin, contentDescription = null, tint = MarkerGreen, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(startLocation, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        }
-                        Box(
-                            modifier = Modifier
-                                .padding(start = 9.dp)
-                                .width(2.dp)
-                                .height(20.dp)
-                                .background(TextSecondary.copy(alpha = 0.3f))
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = MarkerRed, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(endLocation, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        // From → To with visual track
+                        Row(verticalAlignment = Alignment.Top) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                Icon(Icons.Default.TripOrigin, contentDescription = null, tint = MarkerGreen, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(2.dp)
+                                        .height(24.dp)
+                                        .background(DividerColor)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = MarkerRed, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    uiStartLocation,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    uiEndLocation,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider()
-                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = DividerColor)
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                        // Stats row
+                        // Stats row with colored icon backgrounds
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
@@ -211,17 +274,20 @@ fun DriverConfirmationScreen(
                             StatItem(
                                 icon = Icons.Default.Straighten,
                                 label = "Distance",
-                                value = "%.1f km".format(vm.distanceKm)
+                                value = "%.1f km".format(vm.distanceKm),
+                                tint = Info
                             )
                             StatItem(
                                 icon = Icons.Default.Schedule,
                                 label = "Duration",
-                                value = "${vm.durationMinutes} min"
+                                value = "${vm.durationMinutes} min",
+                                tint = Warning
                             )
                             StatItem(
                                 icon = Icons.Default.AirlineSeatReclineNormal,
                                 label = "Seats",
-                                value = "$seats"
+                                value = "$uiSeats",
+                                tint = Success
                             )
                         }
                     }
@@ -276,11 +342,20 @@ fun DriverConfirmationScreen(
 private fun StatItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    value: String
+    value: String,
+    tint: androidx.compose.ui.graphics.Color = Secondary
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, contentDescription = null, tint = Secondary, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.height(6.dp))
         Text(value, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Text(label, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
     }

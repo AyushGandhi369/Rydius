@@ -1,6 +1,7 @@
 package com.rydius.mobile.ui.driver
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -25,6 +26,24 @@ class DriverViewModel : ViewModel() {
     var tripId by mutableStateOf<Int?>(null)
         private set
     var errorMessage by mutableStateOf<String?>(null)
+        private set
+
+    // Trip details (kept in the VM so "resume" always renders the real active trip)
+    var tripStartLocation by mutableStateOf("")
+        private set
+    var tripEndLocation by mutableStateOf("")
+        private set
+    var tripStartLat by mutableStateOf(0.0)
+        private set
+    var tripStartLng by mutableStateOf(0.0)
+        private set
+    var tripEndLat by mutableStateOf(0.0)
+        private set
+    var tripEndLng by mutableStateOf(0.0)
+        private set
+    var tripAvailableSeats by mutableIntStateOf(1)
+        private set
+    var tripDepartureTime by mutableStateOf("Now")
         private set
 
     // Route info
@@ -63,11 +82,32 @@ class DriverViewModel : ViewModel() {
     ) {
         if (initialized) return
         initialized = true
+
+        // Render something immediately; if we find an existing active trip we will overwrite these.
+        tripStartLocation = startLocation
+        tripEndLocation = endLocation
+        tripStartLat = startLat
+        tripStartLng = startLng
+        tripEndLat = endLat
+        tripEndLng = endLng
+        tripAvailableSeats = seats
+        tripDepartureTime = departureTime
+
         viewModelScope.launch {
             isLoading = true
+            resetStateForInit()
             try {
+                // If the driver already has an active trip, resume it instead of creating a new one.
+                // Backend rejects duplicates with 409, so this prevents a broken "Resume Trip" flow.
+                val existing = tripRepo.getActiveTrip().getOrNull()?.trip
+                if (existing != null) {
+                    applyActiveTrip(existing)
+                    isLoading = false
+                    return@launch
+                }
+
                 // 1. Get directions
-                val dirResult = mapRepo.getDirections(startLat, startLng, endLat, endLng)
+                val dirResult = mapRepo.getDirections(tripStartLat, tripStartLng, tripEndLat, tripEndLng)
                 dirResult.onSuccess { dirs ->
                     val route = dirs.routes?.firstOrNull()
                     val leg = route?.legs?.firstOrNull()
@@ -79,7 +119,7 @@ class DriverViewModel : ViewModel() {
                 // If directions failed, estimate from coordinates
                 if (distanceKm == 0.0) {
                     distanceKm = com.rydius.mobile.util.LocationHelper.distanceKm(
-                        startLat, startLng, endLat, endLng
+                        tripStartLat, tripStartLng, tripEndLat, tripEndLng
                     )
                     durationMinutes = (distanceKm * 2.5).toInt() // rough estimate
                 }
@@ -87,17 +127,17 @@ class DriverViewModel : ViewModel() {
                 // 2. Create trip
                 val tripResult = tripRepo.createTrip(
                     CreateTripRequest(
-                        startLocation = startLocation,
-                        startLocationLat = startLat,
-                        startLocationLng = startLng,
-                        endLocation = endLocation,
-                        endLocationLat = endLat,
-                        endLocationLng = endLng,
+                        startLocation = tripStartLocation,
+                        startLocationLat = tripStartLat,
+                        startLocationLng = tripStartLng,
+                        endLocation = tripEndLocation,
+                        endLocationLat = tripEndLat,
+                        endLocationLng = tripEndLng,
                         routePolyline = routePolyline,
                         distanceKm = distanceKm,
                         durationMinutes = durationMinutes,
-                        departureTime = departureTime,
-                        availableSeats = seats
+                        departureTime = tripDepartureTime,
+                        availableSeats = tripAvailableSeats
                     )
                 )
 
@@ -119,9 +159,10 @@ class DriverViewModel : ViewModel() {
                 )
 
                 // 3. Calculate cost sharing
-                tripRepo.calculateCost(
-                    CalculateCostRequest(distanceInKm = distanceKm)
-                ).onSuccess { cost -> costInfo = cost }
+                if (distanceKm > 0.0) {
+                    tripRepo.calculateCost(CalculateCostRequest(distanceInKm = distanceKm))
+                        .onSuccess { cost -> costInfo = cost }
+                }
 
             } catch (e: Exception) {
                 errorMessage = e.message
@@ -130,7 +171,52 @@ class DriverViewModel : ViewModel() {
         }
     }
 
-    // ── Passenger search (polling) ──────────────────────────
+    // Internal helpers
+    private fun resetStateForInit() {
+        tripId = null
+        errorMessage = null
+        distanceKm = 0.0
+        durationMinutes = 0
+        routePolyline = null
+        costInfo = null
+        pendingRequests = emptyList()
+        searchingPassengers = false
+        searchStatusText = "Setting up your trip..."
+        tripCancelled = false
+        tripCompleted = false
+    }
+
+    private fun applyActiveTrip(trip: TripData) {
+        tripId = trip.id
+
+        tripStartLocation = trip.startLocation
+        tripEndLocation = trip.endLocation
+        tripStartLat = trip.startLocationLat
+        tripStartLng = trip.startLocationLng
+        tripEndLat = trip.endLocationLat
+        tripEndLng = trip.endLocationLng
+        tripAvailableSeats = trip.availableSeats
+        tripDepartureTime = trip.departureTime ?: "Now"
+
+        routePolyline = trip.routePolyline
+        distanceKm = trip.distanceKm
+        durationMinutes = trip.durationMinutes
+
+        searchStatusText = "Searching for passengers..."
+        searchingPassengers = true
+        startPassengerSearch(trip.id)
+        setupSocketListening(trip.id)
+
+        // Best-effort: show already pending requests + cost card without blocking UI.
+        viewModelScope.launch { fetchPendingRequests(trip.id) }
+        viewModelScope.launch {
+            if (distanceKm > 0.0) {
+                tripRepo.calculateCost(CalculateCostRequest(distanceInKm = distanceKm))
+                    .onSuccess { cost -> costInfo = cost }
+            }
+        }
+    }
+
     private fun startPassengerSearch(tripId: Int) {
         viewModelScope.launch {
             while (searchingPassengers && !tripCancelled) {
@@ -226,7 +312,10 @@ class DriverViewModel : ViewModel() {
         seats: Int, departureTime: String
     ) {
         initialized = false
-        errorMessage = null
+        searchingPassengers = false
+        socketManager.off("passenger-request")
+        socketManager.leaveTrip()
+        resetStateForInit()
         initialize(startLocation, endLocation, startLat, startLng, endLat, endLng, seats, departureTime)
     }
 

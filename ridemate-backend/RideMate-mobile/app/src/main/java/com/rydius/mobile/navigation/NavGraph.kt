@@ -123,14 +123,14 @@ fun AppNavGraph(
                 navArgument("departureTime") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val args = backStackEntry.arguments!!
+            val args = requireNotNull(backStackEntry.arguments) { "Driver route arguments missing" }
             DriverConfirmationScreen(
                 startLocation = args.getString("startLocation", ""),
                 endLocation = args.getString("endLocation", ""),
-                startLat = args.getString("startLat", "0")!!.toDoubleOrNull() ?: 0.0,
-                startLng = args.getString("startLng", "0")!!.toDoubleOrNull() ?: 0.0,
-                endLat = args.getString("endLat", "0")!!.toDoubleOrNull() ?: 0.0,
-                endLng = args.getString("endLng", "0")!!.toDoubleOrNull() ?: 0.0,
+                startLat = args.getString("startLat", "0").toDoubleOrNull() ?: 0.0,
+                startLng = args.getString("startLng", "0").toDoubleOrNull() ?: 0.0,
+                endLat = args.getString("endLat", "0").toDoubleOrNull() ?: 0.0,
+                endLng = args.getString("endLng", "0").toDoubleOrNull() ?: 0.0,
                 seats = args.getInt("seats", 1),
                 departureTime = args.getString("departureTime", ""),
                 onBack = { navController.popBackStack() },
@@ -155,14 +155,14 @@ fun AppNavGraph(
                 navArgument("departureTime") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val args = backStackEntry.arguments!!
+            val args = requireNotNull(backStackEntry.arguments) { "Passenger route arguments missing" }
             PassengerConfirmationScreen(
                 startLocation = args.getString("startLocation", ""),
                 endLocation = args.getString("endLocation", ""),
-                startLat = args.getString("startLat", "0")!!.toDoubleOrNull() ?: 0.0,
-                startLng = args.getString("startLng", "0")!!.toDoubleOrNull() ?: 0.0,
-                endLat = args.getString("endLat", "0")!!.toDoubleOrNull() ?: 0.0,
-                endLng = args.getString("endLng", "0")!!.toDoubleOrNull() ?: 0.0,
+                startLat = args.getString("startLat", "0").toDoubleOrNull() ?: 0.0,
+                startLng = args.getString("startLng", "0").toDoubleOrNull() ?: 0.0,
+                endLat = args.getString("endLat", "0").toDoubleOrNull() ?: 0.0,
+                endLng = args.getString("endLng", "0").toDoubleOrNull() ?: 0.0,
                 seats = args.getInt("seats", 1),
                 departureTime = args.getString("departureTime", ""),
                 onBack = { navController.popBackStack() },
@@ -190,7 +190,8 @@ fun AppNavGraph(
                 onBack = { navController.popBackStack() },
                 onLogout = {
                     navController.navigate(Routes.LOGIN) {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        launchSingleTop = true
                     }
                 },
                 onNavigateToEditProfile = {

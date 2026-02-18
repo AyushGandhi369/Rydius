@@ -5,6 +5,7 @@ object Constants {
     val OLA_API_KEY: String get() = com.rydius.mobile.BuildConfig.OLA_MAPS_API_KEY
 
     const val OLA_STYLE_URL = "https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json"
+    const val FALLBACK_STYLE_URL = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 
     // Default map center — Ahmedabad
     const val DEFAULT_LAT = 23.0225

@@ -1,9 +1,25 @@
 import org.gradle.api.GradleException
+import java.util.Properties
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// Local-only config (ignored by git) + env vars are supported to avoid committing secrets.
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) {
+        f.inputStream().use { load(it) }
+    }
+}
+
+fun projectOrLocalOrEnv(name: String): String? {
+    val fromProject = project.findProperty(name)?.toString()?.takeIf { it.isNotBlank() }
+    val fromLocal = localProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+    val fromEnv = System.getenv(name)?.takeIf { !it.isNullOrBlank() }
+    return fromProject ?: fromLocal ?: fromEnv
 }
 
 android {
@@ -21,19 +37,17 @@ android {
 
     buildTypes {
         debug {
-            val baseUrl = project.findProperty("RIDEMATE_BASE_URL")?.toString()
+            val baseUrl = projectOrLocalOrEnv("RIDEMATE_BASE_URL")
                 ?: "http://10.0.2.2:3000"
-            val olaMapsApiKey = project.findProperty("OLA_MAPS_API_KEY")?.toString()
-                ?: System.getenv("OLA_MAPS_API_KEY").orEmpty()
+            val olaMapsApiKey = projectOrLocalOrEnv("OLA_MAPS_API_KEY").orEmpty()
             buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
             buildConfigField("String", "OLA_MAPS_API_KEY", "\"$olaMapsApiKey\"")
             isMinifyEnabled = false
         }
         release {
-            val baseUrl = project.findProperty("RIDEMATE_BASE_URL")?.toString()
+            val baseUrl = projectOrLocalOrEnv("RIDEMATE_BASE_URL")
                 ?: "https://your-production-domain.com"
-            val olaMapsApiKey = project.findProperty("OLA_MAPS_API_KEY")?.toString()
-                ?: System.getenv("OLA_MAPS_API_KEY").orEmpty()
+            val olaMapsApiKey = projectOrLocalOrEnv("OLA_MAPS_API_KEY").orEmpty()
             val isReleaseBuild = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
             if (isReleaseBuild) {
                 if (baseUrl.contains("your-production-domain.com")) {

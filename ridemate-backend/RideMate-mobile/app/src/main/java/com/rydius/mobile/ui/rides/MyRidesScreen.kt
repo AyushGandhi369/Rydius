@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -312,6 +313,8 @@ fun MyRidesScreen(
                                     RideCard(
                                         ride = ride,
                                         isRated = ride.matchId != null && ride.matchId in vm.ratedMatchIds,
+                                        isCancellingDriverRide = vm.isCancellingTrip(ride.id),
+                                        onCancelDriverRide = { vm.cancelDriverTrip(ride.id) },
                                         onRate = {
                                             if (ride.matchId != null) {
                                                 ratingMatchId = ride.matchId
@@ -334,6 +337,8 @@ fun MyRidesScreen(
 private fun RideCard(
     ride: MyRide,
     isRated: Boolean = false,
+    isCancellingDriverRide: Boolean = false,
+    onCancelDriverRide: () -> Unit = {},
     onRate: () -> Unit = {}
 ) {
     Card(
@@ -483,6 +488,32 @@ private fun RideCard(
                     }
                 }
             }
+
+            // Cancel button for active driver rides
+            if (ride.status == "active" && ride.userRole == "driver") {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = DividerColor)
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onCancelDriverRide,
+                    enabled = !isCancellingDriverRide,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Error)
+                ) {
+                    if (isCancellingDriverRide) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Error
+                        )
+                    } else {
+                        Icon(Icons.Default.Cancel, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Cancel Trip", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
         }
     }
 }
@@ -507,7 +538,7 @@ private fun EmptyRidesPage(tabName: String) {
             modifier = Modifier.padding(32.dp)
         ) {
             val icon = when (tabName) {
-                "Active" -> Icons.Default.EventNote
+                "Active" -> Icons.AutoMirrored.Filled.EventNote
                 "Completed" -> Icons.Default.CheckCircle
                 else -> Icons.Default.Cancel
             }

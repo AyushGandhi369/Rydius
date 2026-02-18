@@ -270,13 +270,13 @@ fun EditProfileScreen(
                             Icon(Icons.Default.Wc, null, tint = Secondary, modifier = Modifier.size(20.dp))
                         },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(genderExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Secondary,
-                            unfocusedBorderColor = DividerColor,
+                         modifier = Modifier
+                             .fillMaxWidth()
+                             .menuAnchor(type = MenuAnchorType.PrimaryNotEditable),
+                         shape = RoundedCornerShape(12.dp),
+                         colors = OutlinedTextFieldDefaults.colors(
+                             focusedBorderColor = Secondary,
+                             unfocusedBorderColor = DividerColor,
                             cursorColor = Secondary
                         )
                     )

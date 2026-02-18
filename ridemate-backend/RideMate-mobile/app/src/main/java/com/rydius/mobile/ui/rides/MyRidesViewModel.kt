@@ -29,6 +29,8 @@ class MyRidesViewModel : ViewModel() {
         private set
     var ratingSuccess by mutableStateOf<String?>(null)
         private set
+    var cancellingTripIds by mutableStateOf<Set<Int>>(emptySet())
+        private set
 
     fun loadRides() {
         viewModelScope.launch {
@@ -80,6 +82,24 @@ class MyRidesViewModel : ViewModel() {
             )
         }
     }
+
+    fun cancelDriverTrip(tripId: Int) {
+        if (tripId <= 0 || cancellingTripIds.contains(tripId)) return
+        viewModelScope.launch {
+            cancellingTripIds = cancellingTripIds + tripId
+            tripRepo.cancelTrip(tripId).fold(
+                onSuccess = {
+                    loadRides()
+                },
+                onFailure = { e ->
+                    errorMessage = e.message ?: "Failed to cancel trip"
+                }
+            )
+            cancellingTripIds = cancellingTripIds - tripId
+        }
+    }
+
+    fun isCancellingTrip(tripId: Int): Boolean = cancellingTripIds.contains(tripId)
 
     fun clearRatingSuccess() { ratingSuccess = null }
     fun clearError() { errorMessage = null }
