@@ -41,6 +41,9 @@ object ApiClient {
                 HttpLoggingInterceptor.Level.BODY
             else
                 HttpLoggingInterceptor.Level.NONE
+            // Avoid leaking session cookies into debug logs.
+            redactHeader("Cookie")
+            redactHeader("Set-Cookie")
         }
 
         client = OkHttpClient.Builder()
